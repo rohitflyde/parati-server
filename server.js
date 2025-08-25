@@ -34,8 +34,8 @@ app.use(helmet());
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
-  'https://itel-superadmin.vercel.app',
-  'https://itel-frontend.vercel.app'
+  'https://parati-superadmin.vercel.app',
+  'https://parati-client.vercel.app'
 ];
 
 app.use(cors({
