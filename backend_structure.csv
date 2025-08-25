@@ -1,0 +1,240 @@
+Type,File Name,Path,Size (bytes),Last Modified,Field Name,Field Type,Function,Route
+default,backendOverview.js,backendOverview.js,7654,2025-07-29T17:59:08.179Z,,,,
+default,db.js,config\db.js,283,2025-07-28T09:43:58.855Z,,,,
+controller,address.controller.js,controllers\address.controller.js,2410,2025-07-28T09:43:58.861Z,,,getAddresses,
+controller,address.controller.js,controllers\address.controller.js,2410,2025-07-28T09:43:58.861Z,,,addAddress,
+controller,address.controller.js,controllers\address.controller.js,2410,2025-07-28T09:43:58.861Z,,,updateAddress,
+controller,address.controller.js,controllers\address.controller.js,2410,2025-07-28T09:43:58.861Z,,,deleteAddress,
+controller,address.controller.js,controllers\address.controller.js,2410,2025-07-28T09:43:58.861Z,,,setDefaultAddress,
+controller,attribute.controller.js,controllers\attribute.controller.js,3533,2025-07-29T10:56:09.974Z,,,createAttribute,
+controller,attribute.controller.js,controllers\attribute.controller.js,3533,2025-07-29T10:56:09.974Z,,,createAttributeValue,
+controller,attribute.controller.js,controllers\attribute.controller.js,3533,2025-07-29T10:56:09.974Z,,,getAttributesWithValues,
+controller,brand.controller.js,controllers\brand.controller.js,4204,2025-07-28T09:43:58.864Z,,,createBrand,
+controller,brand.controller.js,controllers\brand.controller.js,4204,2025-07-28T09:43:58.864Z,,,getAllBrands,
+controller,brand.controller.js,controllers\brand.controller.js,4204,2025-07-28T09:43:58.864Z,,,getBrandById,
+controller,brand.controller.js,controllers\brand.controller.js,4204,2025-07-28T09:43:58.864Z,,,updateBrand,
+controller,brand.controller.js,controllers\brand.controller.js,4204,2025-07-28T09:43:58.864Z,,,deleteBrand,
+controller,cart.controller.js,controllers\cart.controller.js,4715,2025-07-28T09:43:58.868Z,,,addToCart,
+controller,cart.controller.js,controllers\cart.controller.js,4715,2025-07-28T09:43:58.868Z,,,getCartItems,
+controller,cart.controller.js,controllers\cart.controller.js,4715,2025-07-28T09:43:58.868Z,,,addToWishlist,
+controller,cart.controller.js,controllers\cart.controller.js,4715,2025-07-28T09:43:58.868Z,,,getWishlist,
+controller,cart.controller.js,controllers\cart.controller.js,4715,2025-07-28T09:43:58.868Z,,,deleteWishlistById,
+controller,category.controller.js,controllers\category.controller.js,11233,2025-07-28T09:43:58.872Z,,,createCategory,
+controller,category.controller.js,controllers\category.controller.js,11233,2025-07-28T09:43:58.872Z,,,getAllCategories,
+controller,category.controller.js,controllers\category.controller.js,11233,2025-07-28T09:43:58.872Z,,,getCategoryById,
+controller,category.controller.js,controllers\category.controller.js,11233,2025-07-28T09:43:58.872Z,,,updateCategory,
+controller,category.controller.js,controllers\category.controller.js,11233,2025-07-28T09:43:58.872Z,,,deleteCategory,
+controller,customer.controller.js,controllers\customer.controller.js,2297,2025-07-28T09:43:58.873Z,,,createCustomer,
+controller,customer.controller.js,controllers\customer.controller.js,2297,2025-07-28T09:43:58.873Z,,,getAllCustomers,
+controller,customer.controller.js,controllers\customer.controller.js,2297,2025-07-28T09:43:58.873Z,,,getCustomerById,
+controller,customer.controller.js,controllers\customer.controller.js,2297,2025-07-28T09:43:58.873Z,,,updateCustomer,
+controller,customer.controller.js,controllers\customer.controller.js,2297,2025-07-28T09:43:58.873Z,,,deleteCustomer,
+controller,feature.controller.js,controllers\feature.controller.js,5947,2025-07-28T09:43:58.875Z,,,createFeature,
+controller,feature.controller.js,controllers\feature.controller.js,5947,2025-07-28T09:43:58.875Z,,,addFeatureValue,
+controller,feature.controller.js,controllers\feature.controller.js,5947,2025-07-28T09:43:58.875Z,,,getCategoryFilters,
+controller,feature.controller.js,controllers\feature.controller.js,5947,2025-07-28T09:43:58.875Z,,,applyFilters,
+controller,homepage.controller.js,controllers\homepage.controller.js,39009,2025-07-28T09:43:58.879Z,,,getHomepageContent,
+controller,homepage.controller.js,controllers\homepage.controller.js,39009,2025-07-28T09:43:58.879Z,,,createHomepageContent,
+controller,homepage.controller.js,controllers\homepage.controller.js,39009,2025-07-28T09:43:58.879Z,,,updateHomepageContent,
+controller,homepage.controller.js,controllers\homepage.controller.js,39009,2025-07-28T09:43:58.879Z,,,updateHomepageContent,
+controller,homepage.controller.js,controllers\homepage.controller.js,39009,2025-07-28T09:43:58.879Z,,,updateHomepageContent,
+controller,media.controller.js,controllers\media.controller.js,3211,2025-07-28T09:43:58.881Z,,,getAllMedia,
+controller,media.controller.js,controllers\media.controller.js,3211,2025-07-28T09:43:58.881Z,,,getMediaById,
+controller,media.controller.js,controllers\media.controller.js,3211,2025-07-28T09:43:58.881Z,,,deleteMedia,
+controller,media.controller.js,controllers\media.controller.js,3211,2025-07-28T09:43:58.881Z,,,updateMediaTitle,
+controller,order.controller.js,controllers\order.controller.js,9516,2025-07-28T09:43:58.883Z,,,createRazorpayOrder,
+controller,order.controller.js,controllers\order.controller.js,9516,2025-07-28T09:43:58.883Z,,,verifyRazorpayPayment,
+controller,order.controller.js,controllers\order.controller.js,9516,2025-07-28T09:43:58.883Z,,,placeOrder,
+controller,order.controller.js,controllers\order.controller.js,9516,2025-07-28T09:43:58.883Z,,,getAllOrders,
+controller,order.controller.js,controllers\order.controller.js,9516,2025-07-28T09:43:58.883Z,,,getAllOrdersForSingleUser,
+controller,order.controller.js,controllers\order.controller.js,9516,2025-07-28T09:43:58.883Z,,,getOrderById,
+controller,order.controller.js,controllers\order.controller.js,9516,2025-07-28T09:43:58.883Z,,,deleteOrderById,
+controller,order.controller.js,controllers\order.controller.js,9516,2025-07-28T09:43:58.883Z,,,updateOrderStatus,
+controller,order.controller.js,controllers\order.controller.js,9516,2025-07-28T09:43:58.883Z,,,getOrdersByUser,
+controller,product.controller.js,controllers\product.controller.js,20228,2025-07-29T17:45:15.340Z,,,createProduct,
+controller,product.controller.js,controllers\product.controller.js,20228,2025-07-29T17:45:15.340Z,,,getProductById,
+controller,product.controller.js,controllers\product.controller.js,20228,2025-07-29T17:45:15.340Z,,,getProductBySlug,
+controller,product.controller.js,controllers\product.controller.js,20228,2025-07-29T17:45:15.340Z,,,searchProducts,
+controller,product.controller.js,controllers\product.controller.js,20228,2025-07-29T17:45:15.340Z,,,getAllProducts,
+controller,product.controller.js,controllers\product.controller.js,20228,2025-07-29T17:45:15.340Z,,,updateProduct,
+controller,product.controller.js,controllers\product.controller.js,20228,2025-07-29T17:45:15.340Z,,,deleteProduct,
+controller,product.controller.js,controllers\product.controller.js,20228,2025-07-29T17:45:15.340Z,,,getProductsByCategorySlug,
+controller,product.controller.js,controllers\product.controller.js,20228,2025-07-29T17:45:15.340Z,,,getBulkProductsByIds,
+controller,product.controller.js,controllers\product.controller.js,20228,2025-07-29T17:45:15.340Z,,,addAttributesToProduct,
+controller,product.controller.js,controllers\product.controller.js,20228,2025-07-29T17:45:15.340Z,,,updateProductSpecifications,
+controller,SiteConfig.controller.js,controllers\SiteConfig.controller.js,7188,2025-07-28T09:43:58.859Z,,,getSiteConfig,
+controller,SiteConfig.controller.js,controllers\SiteConfig.controller.js,7188,2025-07-28T09:43:58.859Z,,,upsertSiteConfig,
+controller,subcategory.controller.js,controllers\subcategory.controller.js,5843,2025-07-28T09:43:58.889Z,,,createSubcategory,
+controller,subcategory.controller.js,controllers\subcategory.controller.js,5843,2025-07-28T09:43:58.889Z,,,getAllSubcategories,
+controller,subcategory.controller.js,controllers\subcategory.controller.js,5843,2025-07-28T09:43:58.889Z,,,getSubcategoryById,
+controller,subcategory.controller.js,controllers\subcategory.controller.js,5843,2025-07-28T09:43:58.889Z,,,updateSubcategory,
+controller,subcategory.controller.js,controllers\subcategory.controller.js,5843,2025-07-28T09:43:58.889Z,,,deleteSubcategory,
+controller,subcategory.controller.js,controllers\subcategory.controller.js,5843,2025-07-28T09:43:58.889Z,,,getSubcategoryBySlug,
+controller,subcategory.controller.js,controllers\subcategory.controller.js,5843,2025-07-28T09:43:58.889Z,,,checkSubcategorySlug,
+controller,tag.controller.js,controllers\tag.controller.js,7684,2025-07-28T09:43:58.892Z,,,createTag,
+controller,tag.controller.js,controllers\tag.controller.js,7684,2025-07-28T09:43:58.892Z,,,getAllTags,
+controller,tag.controller.js,controllers\tag.controller.js,7684,2025-07-28T09:43:58.892Z,,,getTagById,
+controller,tag.controller.js,controllers\tag.controller.js,7684,2025-07-28T09:43:58.892Z,,,updateTag,
+controller,tag.controller.js,controllers\tag.controller.js,7684,2025-07-28T09:43:58.892Z,,,deleteTag,
+controller,tag.controller.js,controllers\tag.controller.js,7684,2025-07-28T09:43:58.892Z,,,searchTags,
+controller,user.controller.js,controllers\user.controller.js,14322,2025-07-28T09:43:58.894Z,,,refreshToken,
+controller,user.controller.js,controllers\user.controller.js,14322,2025-07-28T09:43:58.894Z,,,getAllUsers,
+controller,user.controller.js,controllers\user.controller.js,14322,2025-07-28T09:43:58.894Z,,,googleAuthHandler,
+controller,user.controller.js,controllers\user.controller.js,14322,2025-07-28T09:43:58.894Z,,,registerUser,
+controller,user.controller.js,controllers\user.controller.js,14322,2025-07-28T09:43:58.894Z,,,loginUser,
+controller,user.controller.js,controllers\user.controller.js,14322,2025-07-28T09:43:58.894Z,,,sendOtpForGuest,
+controller,user.controller.js,controllers\user.controller.js,14322,2025-07-28T09:43:58.894Z,,,verifyOtp,
+controller,user.controller.js,controllers\user.controller.js,14322,2025-07-28T09:43:58.894Z,,,deleteUser,
+controller,user.controller.js,controllers\user.controller.js,14322,2025-07-28T09:43:58.894Z,,,getProfile,
+controller,user.controller.js,controllers\user.controller.js,14322,2025-07-28T09:43:58.894Z,,,updateProfile,
+controller,user.controller.js,controllers\user.controller.js,14322,2025-07-28T09:43:58.894Z,,,changePassword,
+controller,variant.controller.js,controllers\variant.controller.js,8225,2025-07-29T14:13:16.896Z,,,createVariant,
+controller,variant.controller.js,controllers\variant.controller.js,8225,2025-07-29T14:13:16.896Z,,,getVariant,
+controller,variant.controller.js,controllers\variant.controller.js,8225,2025-07-29T14:13:16.896Z,,,updateVariant,
+middleware,authMiddleware.js,middleware\authMiddleware.js,1054,2025-07-28T09:43:58.898Z,,,,
+default,errorHandlers.js,middleware\errorHandlers.js,351,2025-07-28T09:43:58.900Z,,,,
+middleware,uploadMiddleware.js,middleware\uploadMiddleware.js,164,2025-07-28T09:43:58.902Z,,,,
+default,Attribute.js,models\Attribute.js,1937,2025-07-29T11:07:07.177Z,,,,
+default,AttributeValue.js,models\AttributeValue.js,1637,2025-07-29T09:28:01.594Z,,,,
+default,Brand.js,models\Brand.js,696,2025-07-28T09:43:58.907Z,,,,
+default,Cart.js,models\Cart.js,463,2025-07-28T09:43:58.913Z,,,,
+default,Category.js,models\Category.js,1862,2025-07-28T09:43:58.913Z,,,,
+default,Customer.js,models\Customer.js,728,2025-07-28T09:43:58.915Z,,,,
+default,Attribute.dev.js,models\dist\Attribute.dev.js,2029,2025-07-29T11:07:07.279Z,,,,
+default,AttributeValue.dev.js,models\dist\AttributeValue.dev.js,1838,2025-07-29T09:28:01.661Z,,,,
+default,Product.dev.js,models\dist\Product.dev.js,7512,2025-07-29T17:37:49.456Z,,,,
+default,Variant.dev.js,models\dist\Variant.dev.js,3237,2025-07-29T14:14:11.104Z,,,,
+default,Feature.js,models\Feature.js,2144,2025-07-28T09:43:58.919Z,,,,
+default,FeatureValue.js,models\FeatureValue.js,2612,2025-07-28T09:43:58.921Z,,,,
+default,HomePageContent.js,models\HomePageContent.js,5172,2025-07-28T09:43:58.925Z,,,,
+default,HomeSetting.js,models\HomeSetting.js,2508,2025-07-28T09:43:58.927Z,,,,
+default,Media.js,models\Media.js,1025,2025-07-28T09:43:58.927Z,,,,
+default,Order.js,models\Order.js,1672,2025-07-28T09:43:58.933Z,,,,
+default,OTP.js,models\OTP.js,330,2025-07-28T09:43:58.931Z,,,,
+default,Product.js,models\Product.js,5876,2025-07-29T17:37:49.374Z,,,,
+default,SubCategory.js,models\SubCategory.js,2936,2025-07-28T09:43:58.937Z,,,,
+default,Tag.js,models\Tag.js,2758,2025-07-28T09:43:58.939Z,,,,
+default,User.js,models\User.js,1685,2025-07-28T09:43:58.941Z,,,,
+default,Variant.js,models\Variant.js,3292,2025-07-29T14:14:11.006Z,,,,
+default,Wishlist.js,models\Wishlist.js,341,2025-07-28T09:43:58.945Z,,,,
+route,address.routes.js,routes\address.routes.js,553,2025-07-28T09:43:58.952Z,,,,"📥 import: express from ""express"""
+route,address.routes.js,routes\address.routes.js,553,2025-07-28T09:43:58.952Z,,,,GET / → protect()
+route,address.routes.js,routes\address.routes.js,553,2025-07-28T09:43:58.952Z,,,,POST / → protect()
+route,address.routes.js,routes\address.routes.js,553,2025-07-28T09:43:58.952Z,,,,PUT /:id → protect()
+route,address.routes.js,routes\address.routes.js,553,2025-07-28T09:43:58.952Z,,,,DELETE /:id → protect()
+route,address.routes.js,routes\address.routes.js,553,2025-07-28T09:43:58.952Z,,,,PATCH /:id/set-default → protect()
+route,attribute.routes.js,routes\attribute.routes.js,637,2025-07-29T12:33:53.234Z,,,,"📥 import: express from ""express"""
+route,attribute.routes.js,routes\attribute.routes.js,637,2025-07-29T12:33:53.234Z,,,,"📥 import: cloudinaryUpload from ""../middleware/uploadMiddleware.js"""
+route,attribute.routes.js,routes\attribute.routes.js,637,2025-07-29T12:33:53.234Z,,,,POST / → protect()
+route,attribute.routes.js,routes\attribute.routes.js,637,2025-07-29T12:33:53.234Z,,,,POST / → createAttribute()
+route,attribute.routes.js,routes\attribute.routes.js,637,2025-07-29T12:33:53.234Z,,,,GET / → getAttributesWithValues()
+route,brand.routes.js,routes\brand.routes.js,749,2025-07-28T09:43:58.955Z,,,,"📥 import: express from ""express"""
+route,brand.routes.js,routes\brand.routes.js,749,2025-07-28T09:43:58.955Z,,,,"📥 import: cloudinaryUpload from ""../middleware/uploadMiddleware.js"""
+route,brand.routes.js,routes\brand.routes.js,749,2025-07-28T09:43:58.955Z,,,,GET / → getAllBrands()
+route,brand.routes.js,routes\brand.routes.js,749,2025-07-28T09:43:58.955Z,,,,GET /:id → getBrandById()
+route,brand.routes.js,routes\brand.routes.js,749,2025-07-28T09:43:58.955Z,,,,POST / → protect()
+route,brand.routes.js,routes\brand.routes.js,749,2025-07-28T09:43:58.955Z,,,,PUT /:id → protect()
+route,brand.routes.js,routes\brand.routes.js,749,2025-07-28T09:43:58.955Z,,,,DELETE /:id → protect()
+route,cart.routes.js,routes\cart.routes.js,452,2025-07-28T09:43:58.955Z,,,,"📥 import: express from ""express"""
+route,cart.routes.js,routes\cart.routes.js,452,2025-07-28T09:43:58.955Z,,,,GET /wishlist → protect()
+route,cart.routes.js,routes\cart.routes.js,452,2025-07-28T09:43:58.955Z,,,,POST /wishlist/add → protect()
+route,cart.routes.js,routes\cart.routes.js,452,2025-07-28T09:43:58.955Z,,,,POST /add → protect()
+route,cart.routes.js,routes\cart.routes.js,452,2025-07-28T09:43:58.955Z,,,,POST /items → protect()
+route,category.routes.js,routes\category.routes.js,838,2025-07-28T09:43:58.957Z,,,,"📥 import: express from ""express"""
+route,category.routes.js,routes\category.routes.js,838,2025-07-28T09:43:58.957Z,,,,"📥 import: cloudinarUpload from ""../middleware/uploadMiddleware.js"""
+route,category.routes.js,routes\category.routes.js,838,2025-07-28T09:43:58.957Z,,,,GET / → getAllCategories()
+route,category.routes.js,routes\category.routes.js,838,2025-07-28T09:43:58.957Z,,,,GET /:id → getCategoryById()
+route,category.routes.js,routes\category.routes.js,838,2025-07-28T09:43:58.957Z,,,,POST / → protect()
+route,category.routes.js,routes\category.routes.js,838,2025-07-28T09:43:58.957Z,,,,PUT /:id → protect()
+route,category.routes.js,routes\category.routes.js,838,2025-07-28T09:43:58.957Z,,,,DELETE /:id → protect()
+route,customer.routes.js,routes\customer.routes.js,619,2025-07-28T09:43:58.957Z,,,,"📥 import: express from ""express"""
+route,customer.routes.js,routes\customer.routes.js,619,2025-07-28T09:43:58.957Z,,,,POST / → protect()
+route,customer.routes.js,routes\customer.routes.js,619,2025-07-28T09:43:58.957Z,,,,GET / → protect()
+route,customer.routes.js,routes\customer.routes.js,619,2025-07-28T09:43:58.957Z,,,,GET /:id → protect()
+route,customer.routes.js,routes\customer.routes.js,619,2025-07-28T09:43:58.957Z,,,,PUT /:id → protect()
+route,customer.routes.js,routes\customer.routes.js,619,2025-07-28T09:43:58.957Z,,,,DELETE /:id → protect()
+route,attribute.routes.dev.js,routes\dist\attribute.routes.dev.js,934,2025-07-29T12:33:53.438Z,,,,POST / → protect()
+route,attribute.routes.dev.js,routes\dist\attribute.routes.dev.js,934,2025-07-29T12:33:53.438Z,,,,POST / → _attributeController()
+route,attribute.routes.dev.js,routes\dist\attribute.routes.dev.js,934,2025-07-29T12:33:53.438Z,,,,POST /values → _uploadMiddleware()
+route,attribute.routes.dev.js,routes\dist\attribute.routes.dev.js,934,2025-07-29T12:33:53.438Z,,,,GET / → _attributeController()
+route,product.routes.dev.js,routes\dist\product.routes.dev.js,2012,2025-07-29T17:45:22.990Z,,,,GET / → _productController()
+route,product.routes.dev.js,routes\dist\product.routes.dev.js,2012,2025-07-29T17:45:22.990Z,,,,GET /search → _productController()
+route,product.routes.dev.js,routes\dist\product.routes.dev.js,2012,2025-07-29T17:45:22.990Z,,,,GET /slug/:slug → _productController()
+route,product.routes.dev.js,routes\dist\product.routes.dev.js,2012,2025-07-29T17:45:22.990Z,,,,GET /category/:slug/products → _productController()
+route,product.routes.dev.js,routes\dist\product.routes.dev.js,2012,2025-07-29T17:45:22.990Z,,,,POST /bulk → _productController()
+route,product.routes.dev.js,routes\dist\product.routes.dev.js,2012,2025-07-29T17:45:22.990Z,,,,POST / → _authMiddleware()
+route,product.routes.dev.js,routes\dist\product.routes.dev.js,2012,2025-07-29T17:45:22.990Z,,,,PUT /:id → _authMiddleware()
+route,product.routes.dev.js,routes\dist\product.routes.dev.js,2012,2025-07-29T17:45:22.990Z,,,,POST /:id/attributes → _productController()
+route,product.routes.dev.js,routes\dist\product.routes.dev.js,2012,2025-07-29T17:45:22.990Z,,,,POST /:productId/specifications → _productController()
+route,feature.routes.js,routes\feature.routes.js,574,2025-07-28T09:43:58.959Z,,,,"📥 import: express from ""express"""
+route,feature.routes.js,routes\feature.routes.js,574,2025-07-28T09:43:58.959Z,,,,POST / → protect()
+route,feature.routes.js,routes\feature.routes.js,574,2025-07-28T09:43:58.959Z,,,,POST /values → protect()
+route,feature.routes.js,routes\feature.routes.js,574,2025-07-28T09:43:58.959Z,,,,GET /filters/:category_id → getCategoryFilters()
+route,feature.routes.js,routes\feature.routes.js,574,2025-07-28T09:43:58.959Z,,,,POST /filters/:category_id/apply → applyFilters()
+route,homepage.routes.js,routes\homepage.routes.js,527,2025-07-28T09:43:58.959Z,,,,"📥 import: express from ""express"""
+route,homepage.routes.js,routes\homepage.routes.js,527,2025-07-28T09:43:58.959Z,,,,"📥 import: cloudinarUpload from ""../middleware/uploadMiddleware.js"""
+route,homepage.routes.js,routes\homepage.routes.js,527,2025-07-28T09:43:58.959Z,,,,GET /home → getHomepageContent()
+route,homepage.routes.js,routes\homepage.routes.js,527,2025-07-28T09:43:58.959Z,,,,PUT /home → cloudinarUpload()
+default,index.js,routes\index.js,1604,2025-07-28T09:43:58.961Z,,,,
+route,media.routes.js,routes\media.routes.js,524,2025-07-28T09:43:58.961Z,,,,"📥 import: express from ""express"""
+route,media.routes.js,routes\media.routes.js,524,2025-07-28T09:43:58.961Z,,,,GET / → protect()
+route,media.routes.js,routes\media.routes.js,524,2025-07-28T09:43:58.961Z,,,,GET /:id → protect()
+route,media.routes.js,routes\media.routes.js,524,2025-07-28T09:43:58.961Z,,,,DELETE /:id → deleteMedia()
+route,media.routes.js,routes\media.routes.js,524,2025-07-28T09:43:58.961Z,,,,PUT /:id/title → updateMediaTitle()
+route,order.routes.js,routes\order.routes.js,740,2025-07-28T09:43:58.961Z,,,,"📥 import: express from ""express"""
+route,order.routes.js,routes\order.routes.js,740,2025-07-28T09:43:58.961Z,,,,POST /create-razorpay-order → createRazorpayOrder()
+route,order.routes.js,routes\order.routes.js,740,2025-07-28T09:43:58.961Z,,,,POST /orders/verify-payment → verifyRazorpayPayment()
+route,order.routes.js,routes\order.routes.js,740,2025-07-28T09:43:58.961Z,,,,POST /place → protect()
+route,order.routes.js,routes\order.routes.js,740,2025-07-28T09:43:58.961Z,,,,GET /:id → getOrderById()
+route,order.routes.js,routes\order.routes.js,740,2025-07-28T09:43:58.961Z,,,,GET / → getAllOrders()
+route,order.routes.js,routes\order.routes.js,740,2025-07-28T09:43:58.961Z,,,,GET /customer/:userId → getOrdersByUser()
+route,order.routes.js,routes\order.routes.js,740,2025-07-28T09:43:58.961Z,,,,GET /me/orders → getAllOrdersForSingleUser()
+route,order.routes.js,routes\order.routes.js,740,2025-07-28T09:43:58.961Z,,,,PATCH /:id → updateOrderStatus()
+route,product.routes.js,routes\product.routes.js,1668,2025-07-29T17:45:22.895Z,,,,"📥 import: express from ""express"""
+route,product.routes.js,routes\product.routes.js,1668,2025-07-29T17:45:22.895Z,,,,"📥 import: cloudinarUpload from ""../middleware/uploadMiddleware.js"""
+route,product.routes.js,routes\product.routes.js,1668,2025-07-29T17:45:22.895Z,,,,GET / → getAllProducts()
+route,product.routes.js,routes\product.routes.js,1668,2025-07-29T17:45:22.895Z,,,,GET /search → searchProducts()
+route,product.routes.js,routes\product.routes.js,1668,2025-07-29T17:45:22.895Z,,,,GET /slug/:slug → getProductBySlug()
+route,product.routes.js,routes\product.routes.js,1668,2025-07-29T17:45:22.895Z,,,,GET /category/:slug/products → getProductsByCategorySlug()
+route,product.routes.js,routes\product.routes.js,1668,2025-07-29T17:45:22.895Z,,,,POST /bulk → getBulkProductsByIds()
+route,product.routes.js,routes\product.routes.js,1668,2025-07-29T17:45:22.895Z,,,,DELETE /:id → protect()
+route,product.routes.js,routes\product.routes.js,1668,2025-07-29T17:45:22.895Z,,,,POST /:id/attributes → addAttributesToProduct()
+route,product.routes.js,routes\product.routes.js,1668,2025-07-29T17:45:22.895Z,,,,POST /:productId/specifications → updateProductSpecifications()
+route,SiteConfig.routes.js,routes\SiteConfig.routes.js,607,2025-07-28T09:43:58.952Z,,,,"📥 import: express from ""express"""
+route,SiteConfig.routes.js,routes\SiteConfig.routes.js,607,2025-07-28T09:43:58.952Z,,,,"📥 import: cloudinarUpload from ""../middleware/uploadMiddleware.js"""
+route,SiteConfig.routes.js,routes\SiteConfig.routes.js,607,2025-07-28T09:43:58.952Z,,,,GET /site-config → getSiteConfig()
+route,subcategory.routes.js,routes\subcategory.routes.js,851,2025-07-28T09:43:58.963Z,,,,"📥 import: express from ""express"""
+route,subcategory.routes.js,routes\subcategory.routes.js,851,2025-07-28T09:43:58.963Z,,,,"📥 import: cloudinarUpload from ""../middleware/uploadMiddleware.js"""
+route,subcategory.routes.js,routes\subcategory.routes.js,851,2025-07-28T09:43:58.963Z,,,,POST / → protect()
+route,subcategory.routes.js,routes\subcategory.routes.js,851,2025-07-28T09:43:58.963Z,,,,GET / → getAllSubcategories()
+route,subcategory.routes.js,routes\subcategory.routes.js,851,2025-07-28T09:43:58.963Z,,,,GET /check-slug → protect()
+route,subcategory.routes.js,routes\subcategory.routes.js,851,2025-07-28T09:43:58.963Z,,,,GET /slug/:slug → getSubcategoryBySlug()
+route,subcategory.routes.js,routes\subcategory.routes.js,851,2025-07-28T09:43:58.963Z,,,,GET /:id → getSubcategoryById()
+route,subcategory.routes.js,routes\subcategory.routes.js,851,2025-07-28T09:43:58.963Z,,,,PUT /:id → protect()
+route,subcategory.routes.js,routes\subcategory.routes.js,851,2025-07-28T09:43:58.963Z,,,,DELETE /:id → protect()
+route,tag.routes.js,routes\tag.routes.js,725,2025-07-28T09:43:58.965Z,,,,"📥 import: express from ""express"""
+route,tag.routes.js,routes\tag.routes.js,725,2025-07-28T09:43:58.965Z,,,,"📥 import: cloudinaryUpload from ""../middleware/uploadMiddleware.js"""
+route,tag.routes.js,routes\tag.routes.js,725,2025-07-28T09:43:58.965Z,,,,GET / → getAllTags()
+route,tag.routes.js,routes\tag.routes.js,725,2025-07-28T09:43:58.965Z,,,,GET /search → searchTags()
+route,tag.routes.js,routes\tag.routes.js,725,2025-07-28T09:43:58.965Z,,,,GET /:id → getTagById()
+route,tag.routes.js,routes\tag.routes.js,725,2025-07-28T09:43:58.965Z,,,,DELETE /:id → protect()
+route,user.routes.js,routes\user.routes.js,963,2025-07-28T09:43:58.965Z,,,,"📥 import: express from ""express"""
+route,user.routes.js,routes\user.routes.js,963,2025-07-28T09:43:58.965Z,,,,POST /register → registerUser()
+route,user.routes.js,routes\user.routes.js,963,2025-07-28T09:43:58.965Z,,,,POST /login → loginUser()
+route,user.routes.js,routes\user.routes.js,963,2025-07-28T09:43:58.965Z,,,,POST /auth/google/callback → googleAuthHandler()
+route,user.routes.js,routes\user.routes.js,963,2025-07-28T09:43:58.965Z,,,,POST /send-otp → sendOtpForGuest()
+route,user.routes.js,routes\user.routes.js,963,2025-07-28T09:43:58.965Z,,,,POST /verify-otp → verifyOtp()
+route,user.routes.js,routes\user.routes.js,963,2025-07-28T09:43:58.965Z,,,,POST /refresh → refreshToken()
+route,user.routes.js,routes\user.routes.js,963,2025-07-28T09:43:58.965Z,,,,PUT /change-password → protect()
+route,variants.routes.js,routes\variants.routes.js,538,2025-07-28T09:43:58.965Z,,,,"📥 import: express from ""express"""
+route,variants.routes.js,routes\variants.routes.js,538,2025-07-28T09:43:58.965Z,,,,"📥 import: cloudinarUpload from ""../middleware/uploadMiddleware.js"""
+route,variants.routes.js,routes\variants.routes.js,538,2025-07-28T09:43:58.965Z,,,,POST / → protect()
+route,variants.routes.js,routes\variants.routes.js,538,2025-07-28T09:43:58.965Z,,,,PUT /:id → protect()
+route,variants.routes.js,routes\variants.routes.js,538,2025-07-28T09:43:58.965Z,,,,GET /:id → getVariant()
+default,server.js,server.js,1813,2025-07-28T09:43:58.967Z,,,,
+default,cloudinary.js,utils\cloudinary.js,1086,2025-07-28T09:43:58.967Z,,,,
+default,createMediaEntry.js,utils\createMediaEntry.js,503,2025-07-29T06:27:05.524Z,,,,
+default,createMediaEntry.dev.js,utils\dist\createMediaEntry.dev.js,1234,2025-07-29T06:27:05.589Z,,,,
+default,generateOtp.js,utils\generateOtp.js,131,2025-07-28T09:43:58.968Z,,,,
+default,razorpay.js,utils\razorpay.js,350,2025-07-28T09:43:58.968Z,,,,
+default,variantGeneration.js,utils\variantGeneration.js,2277,2025-07-28T09:43:58.970Z,,,,
