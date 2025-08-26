@@ -37,7 +37,7 @@ export const createBrand = async (req, res) => {
             originCountry,
             officialSiteUrl,
             logo: logoId,
-            meta: meta ? JSON.parse(meta) : {}
+            meta
         });
 
         const savedBrand = await brand.save();

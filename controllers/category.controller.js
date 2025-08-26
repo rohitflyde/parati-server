@@ -2,7 +2,7 @@ import Category from "../models/Category.js";
 import mongoose from "mongoose";
 import { createMediaEntry } from "../utils/createMediaEntry.js";
 
-// Helper to parse JSON strings safely
+// Helper to parse JSON safely
 const safeJsonParse = (str) => {
     try {
         return JSON.parse(str);
@@ -22,14 +22,16 @@ export const createCategory = async (req, res) => {
             status,
             metaTitle,
             metaDescription,
+            heroSlider,
+            featureBoxes,
+            products,
+            parentCategoryId,
         } = req.body;
 
-        // Validate required fields
         if (!title || !slug) {
             return res.status(400).json({ message: "Title and slug are required" });
         }
 
-        // Check unique slug
         const slugExists = await Category.findOne({ slug });
         if (slugExists) {
             return res.status(409).json({ message: "Slug already exists" });
@@ -40,18 +42,16 @@ export const createCategory = async (req, res) => {
             imgId = await createMediaEntry(req.file, req.user._id);
         }
 
-        // Improved helper function with better error handling
+        // Convert nested IDs
         const convertIds = (data) => {
             if (!data) return data;
 
             if (Array.isArray(data)) {
-                return data.map(item => {
+                return data.map((item) => {
                     if (!item) return item;
-
                     const newItem = { ...item };
 
-                    // Handle hero slider images
-                    ['bannerImageMobile', 'bannerImageDesktop', 'bannerImageThumbnail'].forEach(field => {
+                    ["bannerImageMobile", "bannerImageDesktop", "bannerImageThumbnail"].forEach((field) => {
                         if (newItem[field] && mongoose.isValidObjectId(newItem[field])) {
                             newItem[field] = new mongoose.Types.ObjectId(newItem[field]);
                         } else {
@@ -63,18 +63,15 @@ export const createCategory = async (req, res) => {
                 });
             }
 
-            if (typeof data === 'object') {
+            if (typeof data === "object") {
                 const newData = { ...data };
-
-                // Handle feature box images
-                ['box1', 'box2', 'box3'].forEach(box => {
+                ["box1", "box2", "box3"].forEach((box) => {
                     if (newData[box]?.image && mongoose.isValidObjectId(newData[box].image)) {
                         newData[box].image = new mongoose.Types.ObjectId(newData[box].image);
                     } else if (newData[box]?.image) {
                         newData[box].image = null;
                     }
                 });
-
                 return newData;
             }
 
@@ -84,15 +81,13 @@ export const createCategory = async (req, res) => {
         const parsedHeroSlider = heroSlider ? safeJsonParse(heroSlider) : [];
         const parsedFeatureBoxes = featureBoxes ? safeJsonParse(featureBoxes) : undefined;
 
-        // Validate and convert products array
         let convertedProducts = [];
         if (Array.isArray(products)) {
             convertedProducts = products
-                .filter(id => mongoose.isValidObjectId(id))
-                .map(id => new mongoose.Types.ObjectId(id));
+                .filter((id) => mongoose.isValidObjectId(id))
+                .map((id) => new mongoose.Types.ObjectId(id));
         }
 
-        // Validate parent category ID
         let convertedParentId = null;
         if (parentCategoryId && mongoose.isValidObjectId(parentCategoryId)) {
             convertedParentId = new mongoose.Types.ObjectId(parentCategoryId);
@@ -110,7 +105,7 @@ export const createCategory = async (req, res) => {
             heroSlider: convertIds(parsedHeroSlider),
             featureBoxes: convertIds(parsedFeatureBoxes),
             parentCategoryId: convertedParentId,
-            products: convertedProducts
+            products: convertedProducts,
         });
 
         const savedCategory = await newCategory.save();
@@ -121,10 +116,13 @@ export const createCategory = async (req, res) => {
         console.error("Create Category Error:", err);
         return res.status(500).json({
             message: "Internal server error",
-            error: err.message
+            error: err.message,
         });
     }
 };
+
+// Other functions (getAllCategories, getCategoryById, updateCategory, deleteCategory)
+// aapke version ke sahi the, maine sirf createCategory ko properly fix kiya
 
 
 // Get list of all categories, optionally nested

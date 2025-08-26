@@ -65,10 +65,25 @@ const categorySchema = new Schema(
     heroSlider: [heroSliderSchema],
 
     featureBoxes: featureBoxesSchema,
+
     subCategories: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "SubCategory",
+      },
+    ],
+
+    // 👇 Added fields to match controllers
+    parentCategoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
+      default: null,
+    },
+
+    products: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
       },
     ],
   },

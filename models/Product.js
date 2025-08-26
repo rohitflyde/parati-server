@@ -143,12 +143,13 @@ const productSchema = new Schema(
     featuredImage: { type: mongoose.Schema.Types.ObjectId, ref: "Media" },
 
     // baseFeatures: { type: Map, of: mongoose.Schema.Types.ObjectId },
-    baseFeatures: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Feature",
-      },
-    ],
+    // baseFeatures: [
+    //   {
+    //     type: mongoose.Schema.Types.ObjectId,
+    //     ref: "Feature",
+    //     required: false,
+    //   },
+    // ],
 
     attributes: [attributeSchema],
     shipping: shippingSchema,

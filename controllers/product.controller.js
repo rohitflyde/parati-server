@@ -18,8 +18,8 @@ export const createProduct = async (req, res) => {
       longDescription,
       basePrice,
       salePrice,
-      baseFeatures,
-      baseAttributes,
+      // baseFeatures = '',
+      baseAttributes = '',
       shipping,
       inventoryType,
       sku,
@@ -157,11 +157,11 @@ export const createProduct = async (req, res) => {
       salePrice,
       basePhotos: basePhotoIds,
       featuredImage: featuredImageId,
-      baseFeatures: baseFeatures
-        ? typeof baseFeatures === "string"
-          ? JSON.parse(baseFeatures)
-          : baseFeatures
-        : {},
+      // baseFeatures: baseFeatures
+      //   ? typeof baseFeatures === "string"
+      //     ? JSON.parse(baseFeatures)
+      //     : baseFeatures
+      //   : {},
       baseAttributes: baseAttributes
         ? typeof baseAttributes === "string"
           ? JSON.parse(baseAttributes)
