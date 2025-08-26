@@ -22,6 +22,7 @@ import checkoutRoutes from './checkout.routes.js'
 import locationRoutes from './location.routes.js';
 import subCategoryRoutes from "./subcategory.routes.js"
 import reviewRoutes from "./review.routes.js";
+import navigationRoutes from "./navigation.routes.js";
 
 
 const router = express.Router();
@@ -54,6 +55,7 @@ router.use('/reviews', reviewRoutes)
 // SITE CONTENT 
 router.use('/site-content', homepagecontentRoutes)
 router.use('/site-content/config', siteConfigRoutes)
+router.use('/site-content/mega-menu', navigationRoutes)
 
 
 
