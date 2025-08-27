@@ -359,11 +359,38 @@ export const getProductBySlug = async (req, res) => {
           select: "value",
           model: "AttributeValue",
         },
-        { path: "fbtIds", select: "title slug featuredImage sp" },
-        { path: "relatedProductIds", select: "title slug featuredImage sp" },
+
+        // ✅ FBT populate
+        {
+          path: "fbtIds",
+          select: "name slug featuredImage salePrice basePrice",
+          populate: {
+            path: "featuredImage",
+            model: "Media",
+            select: "filePath",
+          },
+        },
+
+        // ✅ Related products populate
+        {
+          path: "relatedProductIds",
+          select: "name slug featuredImage salePrice basePrice",
+          populate: {
+            path: "featuredImage",
+            model: "Media",
+            select: "filePath",
+          },
+        },
+
+        // ✅ Checkout upsell populate
         {
           path: "checkoutUpsellProductIds",
-          select: "title slug featuredImage sp",
+          select: "name slug featuredImage salePrice basePrice",
+          populate: {
+            path: "featuredImage",
+            model: "Media",
+            select: "filePath",
+          },
         },
       ])
       .lean();

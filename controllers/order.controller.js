@@ -116,12 +116,12 @@ export const verifyRazorpayPayment = async (req, res) => {
         console.error('❌ Failed to send order confirmation email:', emailErr.message);
       }
 
-      try {
-        await pushOrderToUnicommerce(updatedOrder);
-        console.log("✅ Order synced with Unicommerce for Razorpay");
-      } catch (err) {
-        console.error("⚠️ Failed to sync prepaid order with Unicommerce:", err.message);
-      }
+      // try {
+      //   await pushOrderToUnicommerce(updatedOrder);
+      //   console.log("✅ Order synced with Unicommerce for Razorpay");
+      // } catch (err) {
+      //   console.error("⚠️ Failed to sync prepaid order with Unicommerce:", err.message);
+      // }
 
 
     } catch (smsErr) {
@@ -231,14 +231,14 @@ export const placeOrder = async (req, res) => {
     console.log('populatedOrder: ', populatedOrder)
 
 
-    if (paymentMethod === 'cod') {
-      try {
-        await pushOrderToUnicommerce(populatedOrder);
-        console.log("✅ Order synced with Unicommerce for COD");
-      } catch (err) {
-        console.error("⚠️ Failed to sync COD order with Unicommerce:", err.message);
-      }
-    }
+    // if (paymentMethod === 'cod') {
+    //   try {
+    //     await pushOrderToUnicommerce(populatedOrder);
+    //     console.log("✅ Order synced with Unicommerce for COD");
+    //   } catch (err) {
+    //     console.error("⚠️ Failed to sync COD order with Unicommerce:", err.message);
+    //   }
+    // }
 
 
     // ✅ Send Order Confirmation SMS for COD
@@ -313,7 +313,6 @@ export const getAllOrders = async (req, res) => {
     res.status(500).json({ error: true, message: "Failed to fetch orders" });
   }
 };
-
 export const getAllOrdersForSingleUser = async (req, res) => {
   try {
     const userId = req.user?._id;
@@ -330,46 +329,8 @@ export const getAllOrdersForSingleUser = async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
-    // 🔁 Fetch live status for each order
-    const updatedOrders = await Promise.all(
-      orders.map(async (order) => {
-        try {
-          const saleOrderCode = `ITELTEST-${order._id}`;
-          const unicomData = await fetchUnicommerceSaleOrder(saleOrderCode);
-
-          console.log('unicomData: ', unicomData)
-
-          const status = unicomData?.saleOrderDTO?.status?.toLowerCase();
-          const pkg = unicomData?.saleOrderDTO?.shippingPackages?.[0];
-          console.log('pkg: ', pkg)
-
-          const trackingUrl = pkg?.trackingNumber || null;
-          const courierName = pkg?.shippingProvider || null;
-          const shippingMethod = pkg?.shippingMethod || null;
-
-          // Optional: Update in DB if you want to save
-          await Order.findByIdAndUpdate(order._id, {
-            status,
-            trackingUrl,
-            courierName,
-            shippingMethod
-          });
-
-          return {
-            ...order.toObject(),
-            status,
-            trackingUrl,
-            courierName,
-            shippingMethod
-          };
-        } catch (err) {
-          console.warn(`⚠️ Failed to fetch status for order ${order._id}:`, err.message);
-          return order;
-        }
-      })
-    );
-
-    res.status(200).json(updatedOrders);
+    // Directly return orders without Unicommerce fetch
+    res.status(200).json(orders);
   } catch (err) {
     console.error("❌ Get All Orders Error:", err);
     res.status(500).json({
@@ -378,6 +339,7 @@ export const getAllOrdersForSingleUser = async (req, res) => {
     });
   }
 };
+
 
 
 export const getOrderById = async (req, res) => {

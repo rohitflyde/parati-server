@@ -125,6 +125,27 @@ export const createCategory = async (req, res) => {
 // aapke version ke sahi the, maine sirf createCategory ko properly fix kiya
 
 
+
+// Get single category by slug
+export const getCategoryBySlug = async (req, res) => {
+    try {
+        const { slug } = req.params;
+        const category = await Category.findOne({ slug: slug.toLowerCase().trim() })
+            .populate("img")
+            .exec();
+
+        if (!category) {
+            return res.status(404).json({ message: "Category not found" });
+        }
+
+        return res.json({ category });
+    } catch (err) {
+        console.error("Get Category by Slug Error:", err);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+
 // Get list of all categories, optionally nested
 export const getAllCategories = async (req, res) => {
     try {
@@ -282,6 +303,34 @@ export const updateCategory = async (req, res) => {
     } catch (err) {
         console.error("Update Category Error:", err);
         return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// CHECK SLUG AVAILABILITY FOR CATEGORY
+export const checkCategorySlug = async (req, res) => {
+    try {
+        const { slug } = req.query;
+
+        if (!slug || typeof slug !== 'string') {
+            return res.status(400).json({
+                success: false,
+                message: 'Slug is required and must be a string',
+            });
+        }
+
+        const existing = await Category.findOne({ slug: slug.toLowerCase().trim() });
+
+        return res.status(200).json({
+            success: true,
+            exists: !!existing,
+        });
+    } catch (err) {
+        console.error('Category Slug Check Error:', err);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to check slug availability',
+            error: err.message,
+        });
     }
 };
 

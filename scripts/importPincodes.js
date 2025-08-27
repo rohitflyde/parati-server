@@ -31,7 +31,7 @@ async function importFromCSV() {
         .on('data', (data) => results.push(data))
         .on('end', async () => {
             try {
-                await Location.insertMany(results);
+                await Location.insertMany(results, { ordered: false });
                 console.log(`${results.length} pincodes imported successfully`);
             } catch (err) {
                 console.error('Error importing pincodes:', err);

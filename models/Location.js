@@ -2,7 +2,7 @@
 import mongoose from 'mongoose';
 
 const locationSchema = new mongoose.Schema({
-    pin: { type: String, required: true, unique: true },
+    pin: { type: Number, required: true, unique: true },
     city: { type: String, required: true },
     state: { type: String, required: true },
     isServiceable: { type: Boolean, default: true }
