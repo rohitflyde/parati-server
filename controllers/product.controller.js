@@ -589,31 +589,282 @@ export const getAllProducts = async (req, res) => {
 };
 
 // Update Product (partial or full)
+// Update Product (replace the existing updateProduct function with this)
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateFields = req.body;
 
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: "Invalid product ID" });
     }
 
-    // Optional: validate price etc here like in createProduct
-
-    const updatedProduct = await Product.findByIdAndUpdate(id, updateFields, {
-      new: true, // return updated doc
-      runValidators: true,
-    }).exec();
-
-    if (!updatedProduct)
+    // Find existing product
+    const existingProduct = await Product.findById(id);
+    if (!existingProduct) {
       return res.status(404).json({ message: "Product not found" });
+    }
 
-    res.json(updatedProduct);
+    const {
+      name,
+      slug,
+      brandId,
+      productLineId,
+      tagIds,
+      shortDescription,
+      longDescription,
+      basePrice,
+      salePrice,
+      baseAttributes,
+      shipping,
+      inventoryType,
+      sku,
+      stock,
+      variants,
+      fbtIds,
+      relatedProductIds,
+      checkoutUpsellProductIds,
+      amazonLink,
+      flipkartLink,
+      ecommerce,
+      status,
+      stockStatus,
+      banners,
+      influencerVideo,
+      featuredBanner,
+      compareSection,
+      metaTitle,
+      metaDescription,
+      attributes,
+      specifications,
+    } = req.body;
+
+    console.log('Update request body:', req.body);
+
+    // Parse categories properly
+    let categories = req.body.categories;
+    if (typeof categories === "string") {
+      try {
+        categories = JSON.parse(categories);
+      } catch (e) {
+        console.error('Error parsing categories:', e);
+        return res.status(400).json({ message: "Invalid categories format" });
+      }
+    }
+
+    // Basic validation
+    if (name && !name.trim()) {
+      return res.status(400).json({ message: "Product name cannot be empty" });
+    }
+
+    // Price validation
+    if (salePrice && basePrice && parseFloat(salePrice) > parseFloat(basePrice)) {
+      return res.status(400).json({ 
+        message: "Sale price cannot be greater than base price" 
+      });
+    }
+
+    // Validate ObjectId fields if provided
+    if (brandId && !mongoose.isValidObjectId(brandId)) {
+      return res.status(400).json({ message: "Invalid brandId" });
+    }
+
+    if (categories && categories.some && categories.some((id) => !mongoose.isValidObjectId(id))) {
+      return res.status(400).json({ message: "Invalid category IDs" });
+    }
+
+    // Handle image uploads and create media entries
+    const uploadedBy = req.user._id;
+
+    // Process featured image (only if new image is uploaded)
+    let featuredImageId = existingProduct.featuredImage;
+    if (req.files?.featuredImage) {
+      featuredImageId = await createMediaEntry(
+        req.files.featuredImage[0],
+        uploadedBy
+      );
+    }
+
+    // Process base photos (only if new photos are uploaded)
+    let basePhotoIds = existingProduct.basePhotos || [];
+    if (req.files?.basePhotos) {
+      basePhotoIds = []; // Replace existing photos
+      for (const file of req.files.basePhotos) {
+        const mediaId = await createMediaEntry(file, uploadedBy);
+        basePhotoIds.push(mediaId);
+      }
+    }
+
+    // Process banner images
+    let processedBanners = existingProduct.banners || {};
+    if (banners) {
+      const bannersObj = typeof banners === "string" ? JSON.parse(banners) : banners;
+
+      for (const [bannerKey, bannerData] of Object.entries(bannersObj)) {
+        processedBanners[bannerKey] = { 
+          ...processedBanners[bannerKey], 
+          ...bannerData 
+        };
+
+        // Handle banner image
+        const bannerImageField = `banners.${bannerKey}.bannerImage`;
+        if (req.files?.[bannerImageField]) {
+          const mediaId = await createMediaEntry(
+            req.files[bannerImageField][0],
+            uploadedBy
+          );
+          processedBanners[bannerKey].bannerImage = mediaId;
+        }
+
+        // Handle banner icon
+        const bannerIconField = `banners.${bannerKey}.icon`;
+        if (req.files?.[bannerIconField]) {
+          const mediaId = await createMediaEntry(
+            req.files[bannerIconField][0],
+            uploadedBy
+          );
+          processedBanners[bannerKey].icon = mediaId;
+        }
+      }
+    }
+
+    // Process featured banner
+    let processedFeaturedBanner = existingProduct.featuredBanner;
+    if (featuredBanner) {
+      processedFeaturedBanner = typeof featuredBanner === "string" 
+        ? JSON.parse(featuredBanner) 
+        : featuredBanner;
+
+      if (req.files?.["featuredBanner.bannerImage"]) {
+        const mediaId = await createMediaEntry(
+          req.files["featuredBanner.bannerImage"][0],
+          uploadedBy
+        );
+        processedFeaturedBanner.bannerImage = mediaId;
+      }
+    }
+
+    // Prepare update object
+    const updateFields = {
+      ...(name && { name }),
+      ...(slug && { slug }),
+      ...(brandId && { brandId }),
+      ...(productLineId && { productLineId }),
+      ...(categories && { categories }),
+      ...(tagIds && { 
+        tagIds: Array.isArray(tagIds) ? tagIds : JSON.parse(tagIds || '[]')
+      }),
+      ...(shortDescription !== undefined && { shortDescription }),
+      ...(longDescription !== undefined && { longDescription }),
+      ...(basePrice && { basePrice }),
+      ...(salePrice !== undefined && { salePrice }),
+      ...(featuredImageId && { featuredImage: featuredImageId }),
+      ...(basePhotoIds.length > 0 && { basePhotos: basePhotoIds }),
+      ...(baseAttributes && { 
+        baseAttributes: typeof baseAttributes === "string" 
+          ? JSON.parse(baseAttributes) 
+          : baseAttributes 
+      }),
+      ...(shipping && { 
+        shipping: typeof shipping === "string" 
+          ? JSON.parse(shipping) 
+          : shipping 
+      }),
+      ...(inventoryType && { inventoryType }),
+      ...(inventoryType === 'simple' && sku && { sku }),
+      ...(inventoryType === 'simple' && stock !== undefined && { stock }),
+      ...(variants && { 
+        variants: Array.isArray(variants) ? variants : JSON.parse(variants) 
+      }),
+      ...(fbtIds && { 
+        fbtIds: Array.isArray(fbtIds) ? fbtIds : JSON.parse(fbtIds || '[]')
+      }),
+      ...(relatedProductIds && { 
+        relatedProductIds: Array.isArray(relatedProductIds) 
+          ? relatedProductIds 
+          : JSON.parse(relatedProductIds || '[]')
+      }),
+      ...(checkoutUpsellProductIds && { 
+        checkoutUpsellProductIds: Array.isArray(checkoutUpsellProductIds)
+          ? checkoutUpsellProductIds
+          : JSON.parse(checkoutUpsellProductIds || '[]')
+      }),
+      ...(amazonLink !== undefined && { amazonLink }),
+      ...(flipkartLink !== undefined && { flipkartLink }),
+      ...(ecommerce !== undefined && { ecommerce }),
+      ...(status !== undefined && { status }),
+      ...(stockStatus && { stockStatus }),
+      ...(Object.keys(processedBanners).length > 0 && { banners: processedBanners }),
+      ...(influencerVideo && { 
+        influencerVideo: typeof influencerVideo === "string"
+          ? JSON.parse(influencerVideo)
+          : influencerVideo
+      }),
+      ...(processedFeaturedBanner && { featuredBanner: processedFeaturedBanner }),
+      ...(compareSection && { 
+        compareSection: typeof compareSection === "string"
+          ? JSON.parse(compareSection)
+          : compareSection
+      }),
+      ...(metaTitle !== undefined && { metaTitle }),
+      ...(metaDescription !== undefined && { metaDescription }),
+      ...(attributes && { 
+        attributes: Array.isArray(attributes) 
+          ? attributes 
+          : JSON.parse(attributes || '[]')
+      }),
+      ...(specifications && { 
+        specifications: Array.isArray(specifications) 
+          ? specifications 
+          : JSON.parse(specifications || '[]')
+      }),
+    };
+
+    console.log('Update fields:', updateFields);
+
+    const updatedProduct = await Product.findByIdAndUpdate(
+      id, 
+      updateFields, 
+      {
+        new: true, // return updated doc
+        runValidators: true,
+      }
+    ).exec();
+
+    if (!updatedProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    return res.status(200).json(updatedProduct);
+
   } catch (error) {
     console.error("Error updating product:", error);
-    res.status(500).json({ message: "Server error" });
+
+    // Handle specific error types
+    if (error.code === 11000) {
+      let duplicateField = Object.keys(error.keyPattern)[0];
+      return res.status(400).json({ 
+        message: `${duplicateField} must be unique` 
+      });
+    }
+
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ message: error.message });
+    }
+
+    if (error instanceof SyntaxError && error.message.includes("JSON")) {
+      return res.status(400).json({ 
+        message: "Invalid JSON in one of the fields" 
+      });
+    }
+
+    return res.status(500).json({ 
+      message: "Server error", 
+      error: error.message 
+    });
   }
 };
+
+
 
 // Delete Product
 export const deleteProduct = async (req, res) => {
