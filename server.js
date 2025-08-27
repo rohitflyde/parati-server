@@ -27,6 +27,7 @@ app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.set("trust proxy", true);
 
 
 // 2. Core Middlewares
@@ -62,7 +63,10 @@ app.use('/api', routes);
 
 
 app.get('/', (req, res) => {
-  res.json({ message: 'Server running 🚀' });
+   const ip = req.ip;
+     const forwarded = req.headers["x-forwarded-for"];
+
+  res.json({ message: 'Server running 🚀', ip });
 });
 
 
