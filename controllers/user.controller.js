@@ -262,9 +262,8 @@ export const sendOtpForUser = async (req, res) => {
             });
         }
 
-        // Normalize phone number (remove any formatting)
+        // Normalize phone number
         const normalizedPhone = phone.replace(/\D/g, '');
-
         if (normalizedPhone.length !== 10) {
             return res.status(400).json({
                 success: false,
@@ -275,30 +274,29 @@ export const sendOtpForUser = async (req, res) => {
         let user = await User.findOne({ phone: normalizedPhone });
 
         if (!user) {
-            // Create new user with phone number
             user = await User.create({
                 name: name || 'User',
                 email: email || `${normalizedPhone}@temp.com`,
                 phone: normalizedPhone,
-                password: `${normalizedPhone}_temp`, // Temporary password
+                password: `${normalizedPhone}_temp`,
                 role: 'customer',
                 isPhoneVerified: false
             });
         }
 
-        // Generate and save OTP
+        // Generate OTP
         const otp = generateOtp();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-        // Use user's email (real or temporary) for OTP storage
-        await OTP.create({
-            email: user.email,
-            otp,
-            expiresAt
-        });
+        // ✅ Save OTP with upsert (overwrite if exists)
+        const otpRecord = await OTP.findOneAndUpdate(
+            { email: user.email },
+            { otp, expiresAt },
+            { upsert: true, new: true }
+        );
 
-        // Send OTP 
         try {
+            // Send SMS
             const smsText = `Your OTP to log in to ExPro is ${otp}. It is valid for 10 minutes. Do not share it with anyone.`;
             const smsResponse = await SendSMS({
                 phone: normalizedPhone,
@@ -308,13 +306,17 @@ export const sendOtpForUser = async (req, res) => {
             console.log('SMSWaale response:', smsResponse);
         } catch (err) {
             console.error('Failed to send OTP via SMSWaale:', err.message);
+
+            // ✅ Delete OTP if SMS fails
+            await OTP.deleteOne({ _id: otpRecord._id });
+
             return res.status(500).json({
                 success: false,
                 message: "Failed to send OTP via SMS"
             });
         }
 
-        // Generate temporary tokens
+        // Generate tokens
         const accessToken = generateAccessToken(user);
         const refreshToken = generateRefreshToken(user);
 
@@ -336,6 +338,7 @@ export const sendOtpForUser = async (req, res) => {
         });
     }
 };
+
 
 
 
@@ -433,8 +436,11 @@ export const verifyOtp = async (req, res) => {
         }
 
         // Find the most recent OTP
-        const record = await OTP.findOne({ email: userEmail })
-            .sort({ createdAt: -1 });
+        const record = await OTP.findOneAndUpdate(
+            { email: user.email },
+            { otp },
+            { upsert: true, new: true }
+        ).sort({ createdAt: -1 });
 
         if (!record || record.otp !== otp) {
             return res.status(401).json({
@@ -476,7 +482,14 @@ export const verifyOtp = async (req, res) => {
         const refreshToken = generateRefreshToken(updatedUser);
 
         // Clean up OTPs
-        await OTP.deleteMany({ email: updatedUser.email });
+        // Clean up OTPs for this user (both email & phone based)
+        await OTP.deleteMany({
+            $or: [
+                { email: updatedUser.email },
+                { phone: updatedUser.phone }
+            ]
+        });
+
 
         return res.json({
             success: true,
