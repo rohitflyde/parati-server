@@ -1,0 +1,700 @@
+{
+  "_id": {
+    "$oid": "68b043a2b14a1ca249a2d015"
+  },
+  "categories": [
+    {
+      "id": "category-1756203970475",
+      "name": "Necklaces",
+      "featured": [
+        {
+          "name": "Gold Pendant Necklace",
+          "href": "gold-pendant-necklace",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376871/N72392ADHT112017_WD-min_2000x_lew8yh.jpg",
+          "imageAlt": "Elegant gold pendant necklace",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bacb"
+          }
+        },
+        {
+          "name": "Diamond Choker",
+          "href": "diamond-choker",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376869/6c23dc9b-4ac3-4246-b21e-79b7401a21f71666440033735-Yellow-Chimes-Silver-Plated-Sparkling-Crystal-Choker-Necklac-1_kzvtk8.webp",
+          "imageAlt": "Diamond choker necklace",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bacc"
+          }
+        },
+        {
+          "name": "Pearl Strand Necklace",
+          "href": "pearl-strand",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376872/QJ3192_nitatg.webp",
+          "imageAlt": "Classic pearl strand necklace",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bacd"
+          }
+        },
+        {
+          "name": "Layered Chain Necklace",
+          "href": "layered-chain",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376873/rubans-22k-gold-plated-ruby-pink-studded-traditional-choker-necklace-set-with-gold-beads-necklace-set-37838684192942_cfz5jg.webp",
+          "imageAlt": "Trendy layered chain necklace",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bace"
+          }
+        }
+      ],
+      "sections": [
+        [
+          {
+            "id": "default-section",
+            "name": "Pendants",
+            "items": [
+              {
+                "name": "Minimal Gold Pendant",
+                "href": "minimal-gold",
+                "desc": "Simple everyday pendant",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376869/6c23dc9b-4ac3-4246-b21e-79b7401a21f71666440033735-Yellow-Chimes-Silver-Plated-Sparkling-Crystal-Choker-Necklac-1_kzvtk8.webp",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bad0"
+                }
+              },
+              {
+                "name": "Heart Pendant",
+                "href": "heart",
+                "desc": "Romantic heart shaped pendant",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376869/6c23dc9b-4ac3-4246-b21e-79b7401a21f71666440033735-Yellow-Chimes-Silver-Plated-Sparkling-Crystal-Choker-Necklac-1_kzvtk8.webp",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bad1"
+                }
+              },
+              {
+                "name": "Floral Pendant",
+                "href": "floral",
+                "desc": "Nature-inspired floral pendant",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376869/6c23dc9b-4ac3-4246-b21e-79b7401a21f71666440033735-Yellow-Chimes-Silver-Plated-Sparkling-Crystal-Choker-Necklac-1_kzvtk8.webp",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bad2"
+                }
+              },
+              {
+                "name": "Gemstone Pendant",
+                "href": "gemstone",
+                "desc": "Colorful gemstone pendant",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376869/6c23dc9b-4ac3-4246-b21e-79b7401a21f71666440033735-Yellow-Chimes-Silver-Plated-Sparkling-Crystal-Choker-Necklac-1_kzvtk8.webp",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bad3"
+                }
+              }
+            ],
+            "_id": {
+              "$oid": "68ad8d8a2d9032ba753156c2"
+            }
+          }
+        ]
+      ],
+      "_id": {
+        "$oid": "68ad8d8a2d9032ba753156c0"
+      }
+    },
+    {
+      "id": "category-1756205550311",
+      "name": "Earrings",
+      "featured": [
+        {
+          "name": "Diamond Studs",
+          "href": "diamond-studs",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376845/DSC07668-_1_vbbrdp.webp",
+          "imageAlt": "Diamond stud earrings",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bad5"
+          }
+        },
+        {
+          "name": "Gold Hoops",
+          "href": "gold-hoops",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376855/rubans-celestial-plumage-22k-gold-plated-jhumka-earrings-with-peacock-charm-earrings-35638656368814_vqgtpe.webp",
+          "imageAlt": "Large gold hoop earrings",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bad6"
+          }
+        },
+        {
+          "name": "Pearl Drops",
+          "href": "pearl-drops",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376854/rubans-22k-gold-plated-pearl-dangle-kundan-statement-jhumka-earrings-earrings-35052131745966_ccd5r2.webp",
+          "imageAlt": "Pearl drop earrings",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bad7"
+          }
+        },
+        {
+          "name": "Chandelier Earrings",
+          "href": "chandelier-earrings",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376847/ebc11563_dghrzz.webp",
+          "imageAlt": "Luxury chandelier earrings",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bad8"
+          }
+        }
+      ],
+      "sections": [
+        [
+          {
+            "id": "default-section",
+            "name": "Studs",
+            "items": [
+              {
+                "name": "Minimal Diamond Studs",
+                "href": "minimal-studs",
+                "desc": "Small and elegant",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376854/rubans-22k-gold-plated-pearl-dangle-kundan-statement-jhumka-earrings-earrings-35052131745966_ccd5r2.webp",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bada"
+                }
+              },
+              {
+                "name": "Gold Ball Studs",
+                "href": "gold-ball",
+                "desc": "Simple gold ball studs",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376854/rubans-22k-gold-plated-pearl-dangle-kundan-statement-jhumka-earrings-earrings-35052131745966_ccd5r2.webp",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2badb"
+                }
+              },
+              {
+                "name": "Crystal Studs",
+                "href": "crystal-studs",
+                "desc": "Shiny crystal studs",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376854/rubans-22k-gold-plated-pearl-dangle-kundan-statement-jhumka-earrings-earrings-35052131745966_ccd5r2.webp",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2badc"
+                }
+              },
+              {
+                "name": "Pearl Studs",
+                "href": "pearl-studs",
+                "desc": "Classic pearl studs",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376854/rubans-22k-gold-plated-pearl-dangle-kundan-statement-jhumka-earrings-earrings-35052131745966_ccd5r2.webp",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2badd"
+                }
+              }
+            ],
+            "_id": {
+              "$oid": "68ad9223d336af8d9fd84f01"
+            }
+          }
+        ]
+      ],
+      "_id": {
+        "$oid": "68ad9223d336af8d9fd84f00"
+      }
+    },
+    {
+      "id": "category-1756205563451",
+      "name": "Rings",
+      "featured": [
+        {
+          "name": "Engagement Ring",
+          "href": "engagement-ring",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756381837/1750517747_9c8da57c71bd0feb6aee_cml3ws.png",
+          "imageAlt": "Diamond engagement ring",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2badf"
+          }
+        },
+        {
+          "name": "Gold Band",
+          "href": "gold-band",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756381837/rings_2_g1cozz.webp",
+          "imageAlt": "Plain gold band",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bae0"
+          }
+        },
+        {
+          "name": "Cocktail Ring",
+          "href": "cocktail-ring",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756381837/backup-collection-244583628988_o7zbuj.webp",
+          "imageAlt": "Colorful cocktail ring",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bae1"
+          }
+        },
+        {
+          "name": "Stackable Rings",
+          "href": "stackable-rings",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756381838/rubans-gold-plated-kundan-multicolour-gem-zirconia-ring-rings-34330699268270_xayfqo.webp",
+          "imageAlt": "Set of stackable rings",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bae2"
+          }
+        }
+      ],
+      "sections": [
+        [
+          {
+            "id": "default-section",
+            "name": "Bands",
+            "items": [
+              {
+                "name": "Classic Gold Band",
+                "href": "classic-gold-band",
+                "desc": "Traditional plain gold band",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756381839/WESBITEEMI_cropped_ljolat.webp",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bae4"
+                }
+              },
+              {
+                "name": "Silver Band",
+                "href": "silver-band",
+                "desc": "Minimal silver band",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756381837/1750517747_9c8da57c71bd0feb6aee_cml3ws.png",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bae5"
+                }
+              },
+              {
+                "name": "Diamond Band",
+                "href": "diamond-band",
+                "desc": "Gold band with small diamonds",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756289467/itel/test/1756289460927-ring.png",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bae6"
+                }
+              },
+              {
+                "name": "Textured Band",
+                "href": "textured-band",
+                "desc": "Textured finish band",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756381838/Small-Diamond-Ring-600x600_sjnfe3.jpg",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bae7"
+                }
+              }
+            ],
+            "_id": {
+              "$oid": "68ad9223d336af8d9fd84f03"
+            }
+          }
+        ]
+      ],
+      "_id": {
+        "$oid": "68ad9223d336af8d9fd84f02"
+      }
+    },
+    {
+      "id": "category-1756206462287",
+      "name": "Bracelets",
+      "featured": [
+        {
+          "name": "Gold Chain Bracelet",
+          "href": "gold-chain-bracelet",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756381816/O1CN012P64mt1wLmpCG5XLk__2214275126292-0-cib_rrf4ph.webp",
+          "imageAlt": "Gold chain bracelet",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bae9"
+          }
+        },
+        {
+          "name": "Tennis Bracelet",
+          "href": "tennis-bracelet",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756381816/84e14eac-e355-481d-94b5-9d58cc7ec48f1716436196486-Peora-Gold-Plated-Artificial-Stone-Studded-Broad-Kada-Bangle-4_vygzcx.webp",
+          "imageAlt": "Diamond tennis bracelet",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2baea"
+          }
+        },
+        {
+          "name": "Pearl Charm Bracelet",
+          "href": "pearl-bracelet",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756381816/trendy-bracelet-pearl-gold-trendy-bracelet-174197-39603326386332_k2ctbp.jpg",
+          "imageAlt": "Pearl charm bracelet",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2baeb"
+          }
+        },
+        {
+          "name": "Leather Wrap Bracelet",
+          "href": "leather-wrap",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756381817/WhatsAppImage2024-09-10at12.04.08PM_be66bdc9-876a-4034-9593-0df7962e5f9c_q2kaun.webp",
+          "imageAlt": "Trendy leather wrap bracelet",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2baec"
+          }
+        }
+      ],
+      "sections": [
+        [
+          {
+            "id": "default-section",
+            "name": "Bangles",
+            "items": [
+              {
+                "name": "Gold Bangle",
+                "href": "gold-bangle",
+                "desc": "Classic gold bangle",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756380422/20250828_1653_Women_s_Bracelet_Showcase_simple_compose_01k3r6kzncedtt3ztkm361h9yb_a2h63c.png",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2baee"
+                }
+              },
+              {
+                "name": "Silver Bangle",
+                "href": "silver-bangle",
+                "desc": "Minimal silver bangle",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756380422/20250828_1653_Women_s_Bracelet_Showcase_simple_compose_01k3r6kzncedtt3ztkm361h9yb_a2h63c.png",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2baef"
+                }
+              },
+              {
+                "name": "Diamond Bangle",
+                "href": "diamond-bangle",
+                "desc": "Sparkling diamond bangle",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756380422/20250828_1653_Women_s_Bracelet_Showcase_simple_compose_01k3r6kzncedtt3ztkm361h9yb_a2h63c.png",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2baf0"
+                }
+              },
+              {
+                "name": "Engraved Bangle",
+                "href": "engraved-bangle",
+                "desc": "Personalized engraved bangle",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756380422/20250828_1653_Women_s_Bracelet_Showcase_simple_compose_01k3r6kzncedtt3ztkm361h9yb_a2h63c.png",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2baf1"
+                }
+              }
+            ],
+            "_id": {
+              "$oid": "68ad95bcd336af8d9fd84f84"
+            }
+          }
+        ]
+      ],
+      "_id": {
+        "$oid": "68ad95bcd336af8d9fd84f83"
+      }
+    },
+    {
+      "id": "category-1756206505215",
+      "name": "Brooches",
+      "featured": [
+        {
+          "name": "Floral Diamond Brooch",
+          "href": "floral-brooch",
+          "imageSrc": "https://www.shutterstock.com/image-photo/metallic-brooch-shape-dragonfly-blue-600nw-2226109391.jpg",
+          "imageAlt": "Floral diamond brooch",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2baf3"
+          }
+        },
+        {
+          "name": "Vintage Pearl Brooch",
+          "href": "vintage-pearl-brooch",
+          "imageSrc": "https://www.shutterstock.com/image-photo/metallic-brooch-shape-dragonfly-blue-600nw-2226109391.jpg",
+          "imageAlt": "Vintage pearl brooch",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2baf4"
+          }
+        },
+        {
+          "name": "Butterfly Brooch",
+          "href": "butterfly-brooch",
+          "imageSrc": "https://www.shutterstock.com/image-photo/metallic-brooch-shape-dragonfly-blue-600nw-2226109391.jpg",
+          "imageAlt": "Colorful butterfly brooch\"",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2baf5"
+          }
+        },
+        {
+          "name": "Gemstone Cluster Brooch",
+          "href": "gemstone-brooch",
+          "imageSrc": "https://www.shutterstock.com/image-photo/metallic-brooch-shape-dragonfly-blue-600nw-2226109391.jpg",
+          "imageAlt": "Cluster of gemstones brooch",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2baf6"
+          }
+        }
+      ],
+      "sections": [
+        [
+          {
+            "id": "default-section",
+            "name": "Designer",
+            "items": [
+              {
+                "name": "Crystal Brooch",
+                "href": "crystal",
+                "desc": "Sparkly crystal brooch",
+                "image": "https://www.shutterstock.com/image-photo/metallic-brooch-shape-dragonfly-blue-600nw-2226109391.jpg",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2baf8"
+                }
+              },
+              {
+                "name": "Animal Brooch",
+                "href": "animal",
+                "desc": "Cute animal-inspired brooch",
+                "image": "https://www.shutterstock.com/image-photo/metallic-brooch-shape-dragonfly-blue-600nw-2226109391.jpg",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2baf9"
+                }
+              },
+              {
+                "name": "Minimal Brooch",
+                "href": "minimal",
+                "desc": "Simple everyday brooch",
+                "image": "https://www.shutterstock.com/image-photo/metallic-brooch-shape-dragonfly-blue-600nw-2226109391.jpg",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bafa"
+                }
+              },
+              {
+                "name": "Royal Brooch",
+                "href": "royal",
+                "desc": "Luxury royal brooch",
+                "image": "https://www.shutterstock.com/image-photo/metallic-brooch-shape-dragonfly-blue-600nw-2226109391.jpg",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bafb"
+                }
+              }
+            ],
+            "_id": {
+              "$oid": "68ad95bcd336af8d9fd84f86"
+            }
+          }
+        ]
+      ],
+      "_id": {
+        "$oid": "68ad95bcd336af8d9fd84f85"
+      }
+    },
+    {
+      "id": "category-1756206519829",
+      "name": "Anklets",
+      "featured": [
+        {
+          "name": "Gold Anklet",
+          "href": "gold-anklet",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376828/tilakini-a-web_yjlnus.webp",
+          "imageAlt": "Gold anklet",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bafd"
+          }
+        },
+        {
+          "name": "Silver Charm Anklet",
+          "href": "silver-anklet",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376827/IMG-7257_xh49ww.webp",
+          "imageAlt": "Silver Charm Anklet",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bafe"
+          }
+        },
+        {
+          "name": "Pearl Anklet",
+          "href": "pearl-anklet",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376827/61V8BI4mNdL._UY1100__cspgrf.jpg",
+          "imageAlt": "Pearl Anklet",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2baff"
+          }
+        },
+        {
+          "name": "Beaded Anklet",
+          "href": "beaded-anklet",
+          "imageSrc": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376829/shopping_opzhzl.webp",
+          "imageAlt": "Beaded Anklet",
+          "colors": [
+            "#000000",
+            "#FF5733",
+            "#CCCCCC"
+          ],
+          "_id": {
+            "$oid": "68afffeeb14a1ca249a2bb00"
+          }
+        }
+      ],
+      "sections": [
+        [
+          {
+            "id": "default-section",
+            "name": "Chains",
+            "items": [
+              {
+                "name": "Simple Gold Chain Anklet",
+                "href": "gold-chain",
+                "desc": "Minimal gold anklet chain",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376827/DSC_4071_2_euperb.webp",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bb02"
+                }
+              },
+              {
+                "name": "Layered Silver Chain Anklet",
+                "href": "silver-chain",
+                "desc": "Layered silver chain anklet",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376827/DSC_4071_2_euperb.webp",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bb03"
+                }
+              },
+              {
+                "name": "Charm Chain Anklet",
+                "href": "charm-chain",
+                "desc": "Charm added chain anklet",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376827/DSC_4071_2_euperb.webp",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bb04"
+                }
+              },
+              {
+                "name": "Boho Chain Anklet",
+                "href": "boho-chain",
+                "desc": "Bohemian style anklet chain",
+                "image": "https://res.cloudinary.com/dyhihsjig/image/upload/v1756376827/DSC_4071_2_euperb.webp",
+                "_id": {
+                  "$oid": "68afffeeb14a1ca249a2bb05"
+                }
+              }
+            ],
+            "_id": {
+              "$oid": "68ad95bcd336af8d9fd84f88"
+            }
+          }
+        ]
+      ],
+      "_id": {
+        "$oid": "68ad95bcd336af8d9fd84f87"
+      }
+    }
+  ],
+  "pages": [],
+  "isActive": true,
+  "createdAt": {
+    "$date": "2025-08-28T11:55:14.306Z"
+  },
+  "updatedAt": {
+    "$date": "2025-08-28T11:55:14.306Z"
+  },
+  "__v": 0
+}
