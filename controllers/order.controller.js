@@ -157,12 +157,9 @@ export const placeOrder = async (req, res) => {
       return res.status(400).json({ error: true, message: "Cart is empty" });
     }
 
-    // Get user to access address details if needed
     const user = await User.findById(userId);
 
     let shippingAddressData;
-
-    // If shippingAddress is an ID (from saved addresses)
     if (mongoose.Types.ObjectId.isValid(shippingAddress)) {
       const userAddress = user.addresses.id(shippingAddress);
       if (!userAddress) {
@@ -181,11 +178,9 @@ export const placeOrder = async (req, res) => {
         email: user.email
       };
     } else {
-      // If shippingAddress is a new address object
       shippingAddressData = shippingAddress;
     }
 
-    // Create order with initial status
     const orderData = {
       user: userId,
       items: items.map(item => ({
@@ -197,97 +192,46 @@ export const placeOrder = async (req, res) => {
       shippingAddress: shippingAddressData,
       paymentMethod,
       total,
-      status: paymentMethod === 'cod' ? 'confirmed' : 'processing',
-      paymentStatus: paymentMethod === 'cod' ? 'completed' : 'pending',
-      isPaid: paymentMethod === 'cod' ? true : false
+      status: 'pending', // initially pending
+      paymentStatus: 'pending',
+      isPaid: false
     };
 
+    // ✅ COD Flow with Token
     if (paymentMethod === 'cod') {
-      orderData.paidAt = new Date();
+      orderData.tokenAmount = 1000;
+      orderData.remainingCOD = total - 1000;
+      orderData.tokenPaymentStatus = 'pending';
+
+      // Razorpay order for token payment (1000 INR)
+      const options = {
+        amount: 1000 * 100, // in paise
+        currency: "INR",
+        receipt: `cod_token_${Date.now()}`,
+        payment_capture: 1
+      };
+
+      const razorpayOrder = await razorpay.orders.create(options);
+      orderData.razorpayTokenOrderId = razorpayOrder.id;
+    }
+
+    // ✅ Razorpay (full payment) flow
+    if (paymentMethod === 'razorpay') {
+      orderData.status = 'processing';
+      orderData.paymentStatus = 'pending';
+      orderData.isPaid = false;
     }
 
     const order = await Order.create(orderData);
 
-    // For Razorpay, return minimal order for payment
-    if (paymentMethod === 'razorpay') {
-      return res.status(201).json({
-        success: true,
-        message: "Order created. Proceed to payment.",
-        order,
-        paymentRequired: true,
-        paymentMethod: 'razorpay'
-      });
-    }
-
-    // Populate full order details for COD
-    const populatedOrder = await Order.findById(order._id)
-      .populate({
-        path: 'items.product',
-        select: 'name sku price salePrice basePrice', // Try multiple possible price fields
-        model: 'Product' // Explicitly specify the model
-      })
-      .populate('user', 'name email phone')
-      .exec();
-    console.log('populatedOrder: ', populatedOrder)
-
-
-    // if (paymentMethod === 'cod') {
-    //   try {
-    //     await pushOrderToUnicommerce(populatedOrder);
-    //     console.log("✅ Order synced with Unicommerce for COD");
-    //   } catch (err) {
-    //     console.error("⚠️ Failed to sync COD order with Unicommerce:", err.message);
-    //   }
-    // }
-
-
-    // ✅ Send Order Confirmation SMS for COD
-    try {
-      const customerName = populatedOrder?.user?.name || 'Customer';
-      const orderIdShort = populatedOrder?._id?.toString().slice(-6).toUpperCase(); // short order ID
-      const orderDate = new Date().toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
-      });
-
-      const smsMessage = `Hi ${customerName}, your order ${orderIdShort} has been placed successfully on ${orderDate} via ExPro! We'll notify you once it's shipped. Thanks for shopping with us.`;
-
-      await SendSMS({
-        phone: populatedOrder?.shippingAddress?.phone,
-        message: smsMessage
-      });
-
-      console.log(`✅ Order confirmation SMS sent to ${populatedOrder?.shippingAddress?.phone}`);
-
-
-      try {
-        // Generate email HTML
-        const emailHtml = generateOrderEmail(populatedOrder);
-
-        await sendEmail({
-          to: populatedOrder.user.email,
-          subject: `Your Itel Order #${populatedOrder._id.toString().slice(-6).toUpperCase()} Confirmation`,
-          html: emailHtml
-        });
-
-
-
-
-
-
-      } catch (emailErr) {
-        console.error('❌ Failed to send order confirmation email:', emailErr.message);
-      }
-    } catch (smsErr) {
-      console.error('❌ Failed to send order confirmation SMS:', smsErr.message);
-    }
-
     return res.status(201).json({
       success: true,
-      message: "COD order placed successfully",
-      order: populatedOrder,
-      paymentRequired: false
+      message: paymentMethod === 'cod'
+        ? "COD order created. Token payment required."
+        : "Order created. Proceed to payment.",
+      order,
+      paymentRequired: true,
+      paymentType: paymentMethod === 'cod' ? 'cod_token' : 'razorpay'
     });
 
   } catch (err) {
@@ -298,6 +242,82 @@ export const placeOrder = async (req, res) => {
     });
   }
 };
+
+
+export const verifyCodTokenPayment = async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
+
+    const generated_signature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest('hex');
+
+    if (generated_signature !== razorpay_signature) {
+      return res.status(400).json({ error: true, message: "Token payment verification failed" });
+    }
+
+    const updatedOrder = await Order.findByIdAndUpdate(
+      orderId,
+      {
+        status: 'confirmed',
+        tokenPaymentStatus: 'paid',
+        razorpayTokenPaymentId: razorpay_payment_id,
+        razorpayTokenSignature: razorpay_signature
+      },
+      { new: true }
+    ).populate('items.product').populate('user', 'name email phone');
+
+
+
+    // ✅ Order Confirmation SMS + Email
+    try {
+      const customerName = updatedOrder?.user?.name || "Customer";
+      const orderIdShort = updatedOrder?._id?.toString().slice(-6).toUpperCase();
+      const orderDate = new Date().toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+
+      const smsMessage = `Hi ${customerName}, your order ${orderIdShort} has been placed successfully on ${orderDate} via ExPro! We'll notify you once it's shipped. Thanks for shopping with us.`;
+
+      await SendSMS({
+        phone: updatedOrder?.shippingAddress?.phone,
+        message: smsMessage,
+      });
+
+      console.log(`✅ Order confirmation SMS sent to ${updatedOrder?.shippingAddress?.phone}`);
+
+      try {
+        const emailHtml = generateOrderEmail(updatedOrder);
+
+        await sendEmail({
+          to: updatedOrder.user.email,
+          subject: `Your Itel Order #${orderIdShort} Confirmation`,
+          html: emailHtml,
+        });
+
+        console.log("✅ Order confirmation Email sent");
+      } catch (emailErr) {
+        console.error("❌ Failed to send order confirmation email:", emailErr.message);
+      }
+    } catch (smsErr) {
+      console.error("❌ Failed to send order confirmation SMS:", smsErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      order: updatedOrder,
+      message: "COD token payment verified successfully"
+    });
+  } catch (err) {
+    console.error("❌ COD Token Payment Verification Error:", err);
+    res.status(500).json({ error: true, message: "Failed to verify COD token payment" });
+  }
+};
+
+
 
 
 export const getAllOrders = async (req, res) => {
@@ -313,6 +333,8 @@ export const getAllOrders = async (req, res) => {
     res.status(500).json({ error: true, message: "Failed to fetch orders" });
   }
 };
+
+
 export const getAllOrdersForSingleUser = async (req, res) => {
   try {
     const userId = req.user?._id;
