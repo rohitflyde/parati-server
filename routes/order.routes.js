@@ -9,7 +9,13 @@ import {
     updateOrderStatus,
     verifyRazorpayPayment,
     verifyCodTokenPayment,   // ✅ new import
-    deleteOrderById
+    deleteOrderById,
+    getShiprocketTracking,
+    downloadInvoice,
+    getShiprocketOrderDetails,
+    downloadShippingLabel,
+    generateOrderManifest,
+    cancelShiprocketOrder
 } from '../controllers/order.controller.js'
 import { isAdmin, protect } from '../middleware/authMiddleware.js'
 
@@ -20,10 +26,20 @@ router.post('/create-razorpay-order', createRazorpayOrder)
 router.post('/verify-payment', verifyRazorpayPayment)
 
 // ✅ COD with Token Flow
-router.post('/verify-cod-token', verifyCodTokenPayment) 
+router.post('/verify-cod-token', verifyCodTokenPayment)
 
 // ✅ Order Placement
 router.post('/place', protect, placeOrder);
+
+
+// Shiprocket
+router.get('/:id/shiprocket/tracking', getShiprocketTracking);
+router.get('/:id/shiprocket/invoice', downloadInvoice);
+router.get('/:id/shiprocket/details', getShiprocketOrderDetails);
+router.get('/:id/shiprocket/label', downloadShippingLabel);
+router.get('/:id/shiprocket/manifest', generateOrderManifest);
+router.post('/:id/shiprocket/cancel', cancelShiprocketOrder);
+
 
 // ✅ Fetch Orders
 router.get('/:id', protect, getOrderById)

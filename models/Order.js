@@ -77,7 +77,27 @@ const orderSchema = new mongoose.Schema({
 
     // shipping tracking
     courierName: { type: String },
-    trackingUrl: { type: String }
+    trackingUrl: { type: String },
+
+
+    // shipping via Shiprocket 
+    shiprocketOrderId: { type: String },
+    shiprocketShipmentId: { type: String }, // ✅ ADD THIS
+    awbCode: { type: String },
+    labelUrl: { type: String },
+    manifestUrl: { type: String },
+    invoiceUrl: { type: String }, // ✅ ADD THIS
+    pickupScheduled: { type: Boolean, default: false },
+    shiprocketStatus: { type: String }, // ✅ ADD THIS for tracking status
+
+    // ✅ ADD tracking events array
+    trackingEvents: [{
+        date: Date,
+        status: String,
+        activity: String,
+        location: String
+    }],
+    deliveredAt: { type: Date },
 
 }, {
     timestamps: true

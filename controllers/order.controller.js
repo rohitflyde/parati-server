@@ -8,6 +8,16 @@ import { SendSMS } from '../utils/sendSMS.js'
 import { sendEmail } from '../utils/sendEmail.js'
 import { generateOrderEmail } from "../utils/orderEmailTemplate.js";
 import { pushOrderToUnicommerce, fetchUnicommerceSaleOrder } from "../utils/unicommerece.js";
+import {
+  createShiprocketOrder,
+  getShipmentTracking,
+  generateInvoice,
+  trackByAWB,
+  getOrderDetails,
+  generateManifest,
+  cancelShiprocketOrder as cancelShiprocketOrderControllers,
+
+} from "../utils/shiprocket.js";
 
 
 
@@ -224,6 +234,32 @@ export const placeOrder = async (req, res) => {
 
     const order = await Order.create(orderData);
 
+    // 🚀 Push to Shiprocket
+    try {
+      const shiprocketRes = await createShiprocketOrder(order);
+
+      // Check if Shiprocket response indicates success
+      if (shiprocketRes && shiprocketRes.order_id) {
+        await Order.findByIdAndUpdate(order._id, {
+          shiprocketOrderId: shiprocketRes.order_id,
+          awbCode: shiprocketRes.awb_code || null,
+          courierName: shiprocketRes.courier_name || null,
+          trackingUrl: shiprocketRes.tracking_url || null,
+          status: 'confirmed' // Update status to confirmed
+        });
+
+        console.log("✅ Order pushed to Shiprocket:", shiprocketRes.order_id);
+      } else {
+        console.warn("⚠️ Shiprocket order created but no order_id returned:", shiprocketRes);
+      }
+
+    } catch (err) {
+      console.error("❌ Failed to create Shiprocket order:", err.message);
+      // Don't fail the entire order if Shiprocket fails
+      // You might want to set a flag or send a notification
+    }
+
+
     return res.status(201).json({
       success: true,
       message: paymentMethod === 'cod'
@@ -338,26 +374,39 @@ export const getAllOrders = async (req, res) => {
 export const getAllOrdersForSingleUser = async (req, res) => {
   try {
     const userId = req.user?._id;
+    const { page = 1, limit = 10 } = req.query; // Default to page 1 and limit 10
+    const skip = (page - 1) * limit;
 
+    // Fetch orders for the user with pagination
     const orders = await Order.find({ user: userId })
+      .skip(skip) // Skip orders for previous pages
+      .limit(limit) // Limit the number of orders
       .populate({
         path: 'items.product',
         select: 'name featuredImage salePrice basePrice slug',
         populate: {
           path: 'featuredImage',
           model: 'Media',
-          select: 'filePath'
-        }
+          select: 'filePath',
+        },
       })
       .sort({ createdAt: -1 });
 
-    // Directly return orders without Unicommerce fetch
-    res.status(200).json(orders);
+    // Count total number of orders for the user (used for pagination calculation)
+    const totalOrders = await Order.countDocuments({ user: userId });
+
+    // Send response with pagination info and orders
+    res.status(200).json({
+      orders,
+      totalOrders,
+      totalPages: Math.ceil(totalOrders / limit),
+      currentPage: parseInt(page),
+    });
   } catch (err) {
     console.error("❌ Get All Orders Error:", err);
     res.status(500).json({
       error: true,
-      message: err.message || "Failed to fetch orders"
+      message: err.message || "Failed to fetch orders",
     });
   }
 };
@@ -533,3 +582,243 @@ export const getOrdersByUser = async (req, res) => {
     });
   }
 }
+
+
+
+
+// 🚀 Get Shiprocket Tracking
+export const getShiprocketTracking = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ error: true, message: "Order not found" });
+    }
+
+    if (!order.shiprocketOrderId) {
+      return res.status(400).json({ error: true, message: "Order not shipped yet" });
+    }
+
+    let trackingData;
+
+    // Try tracking by AWB if available
+    if (order.awbCode) {
+      trackingData = await trackByAWB(order.awbCode);
+    } else {
+      // Fallback to order ID tracking
+      trackingData = await getShipmentTracking(order.shiprocketOrderId);
+    }
+
+    // Update order with tracking info
+    if (trackingData && trackingData.tracking_data) {
+      const updateData = {
+        shiprocketStatus: trackingData.tracking_data.shipment_status,
+        trackingEvents: trackingData.tracking_data.track_activities || []
+      };
+
+      // Auto-update order status if delivered
+      if (trackingData.tracking_data.shipment_status === 'Delivered') {
+        updateData.status = 'delivered';
+        updateData.deliveredAt = new Date();
+      }
+
+      await Order.findByIdAndUpdate(id, updateData);
+    }
+
+    res.status(200).json({
+      success: true,
+      tracking: trackingData
+    });
+
+  } catch (error) {
+    console.error("❌ Get Tracking Error:", error);
+    res.status(500).json({
+      error: true,
+      message: "Failed to fetch tracking details"
+    });
+  }
+};
+
+// 🚀 Download Invoice
+export const downloadInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ error: true, message: "Order not found" });
+    }
+
+    if (!order.shiprocketOrderId) {
+      return res.status(400).json({ error: true, message: "Order not shipped yet" });
+    }
+
+    // Generate invoice
+    const invoiceData = await generateInvoice(order.shiprocketOrderId);
+
+    // If invoice URL is returned, update order and redirect
+    if (invoiceData.invoice_url) {
+      await Order.findByIdAndUpdate(id, {
+        invoiceUrl: invoiceData.invoice_url
+      });
+
+      return res.redirect(invoiceData.invoice_url);
+    }
+
+    res.status(200).json({
+      success: true,
+      invoice: invoiceData
+    });
+
+  } catch (error) {
+    console.error("❌ Download Invoice Error:", error);
+    res.status(500).json({
+      error: true,
+      message: "Failed to generate invoice"
+    });
+  }
+};
+
+// 🚀 Get Order Details from Shiprocket
+export const getShiprocketOrderDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ error: true, message: "Order not found" });
+    }
+
+    if (!order.shiprocketOrderId) {
+      return res.status(400).json({ error: true, message: "Order not shipped yet" });
+    }
+
+    const orderDetails = await getOrderDetails(order.shiprocketOrderId);
+
+    res.status(200).json({
+      success: true,
+      orderDetails: orderDetails
+    });
+
+  } catch (error) {
+    console.error("❌ Get Order Details Error:", error);
+    res.status(500).json({
+      error: true,
+      message: "Failed to fetch order details"
+    });
+  }
+};
+
+// 🚀 Download Shipping Label
+export const downloadShippingLabel = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ error: true, message: "Order not found" });
+    }
+
+    if (!order.shiprocketOrderId) {
+      return res.status(400).json({ error: true, message: "Order not shipped yet" });
+    }
+
+    const labelData = await generateShippingLabel(order.shiprocketOrderId);
+
+    if (labelData.label_url) {
+      await Order.findByIdAndUpdate(id, {
+        labelUrl: labelData.label_url
+      });
+
+      return res.redirect(labelData.label_url);
+    }
+
+    res.status(200).json({
+      success: true,
+      label: labelData
+    });
+
+  } catch (error) {
+    console.error("❌ Download Label Error:", error);
+    res.status(500).json({
+      error: true,
+      message: "Failed to generate shipping label"
+    });
+  }
+};
+
+// 🚀 Generate Manifest
+export const generateOrderManifest = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ error: true, message: "Order not found" });
+    }
+
+    if (!order.shiprocketOrderId) {
+      return res.status(400).json({ error: true, message: "Order not shipped yet" });
+    }
+
+    const manifestData = await generateManifest(order.shiprocketOrderId);
+
+    if (manifestData.manifest_url) {
+      await Order.findByIdAndUpdate(id, {
+        manifestUrl: manifestData.manifest_url
+      });
+
+      return res.redirect(manifestData.manifest_url);
+    }
+
+    res.status(200).json({
+      success: true,
+      manifest: manifestData
+    });
+
+  } catch (error) {
+    console.error("❌ Generate Manifest Error:", error);
+    res.status(500).json({
+      error: true,
+      message: "Failed to generate manifest"
+    });
+  }
+};
+
+// 🚀 Cancel Shiprocket Order
+export const cancelShiprocketOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ error: true, message: "Order not found" });
+    }
+
+    if (!order.shiprocketOrderId) {
+      return res.status(400).json({ error: true, message: "Order not shipped yet" });
+    }
+
+    const cancelData = await cancelShiprocketOrderControllers(order.shiprocketOrderId);
+
+    // Update order status
+    await Order.findByIdAndUpdate(id, {
+      status: 'cancelled',
+      shiprocketStatus: 'CANCELLED'
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Order cancelled in Shiprocket",
+      data: cancelData
+    });
+
+  } catch (error) {
+    console.error("❌ Cancel Shiprocket Order Error:", error);
+    res.status(500).json({
+      error: true,
+      message: "Failed to cancel order in Shiprocket"
+    });
+  }
+};

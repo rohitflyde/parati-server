@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 import { connectDB } from './config/db.js'
 import { notFound, errorHandler } from './middleware/errorHandlers.js'
 import './jobs/abandonedCartCron.js';
-import './jobs/syncOrdersCron.js'
+// import './jobs/syncOrdersCron.js'
 
 // Routes 
 import routes from './routes/index.js'
