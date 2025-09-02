@@ -1,8 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 
-// --- 1. Embedded Sub-schemas --- //
+// --- 1. Embedded Sub-schemas (same as before) --- //
 
-// Shipping
 const shippingSchema = new Schema(
   {
     weight: { type: Number, default: null },
@@ -17,7 +16,6 @@ const shippingSchema = new Schema(
   { _id: false }
 );
 
-// Banner (for marketing/promos)
 const bannerSchema = new Schema(
   {
     showSection: { type: Boolean, default: true },
@@ -39,7 +37,6 @@ const bannerSchema = new Schema(
   { _id: false }
 );
 
-// Influencer Video content
 const influencerVideoSchema = new Schema(
   {
     showSection: { type: Boolean, default: true },
@@ -48,7 +45,6 @@ const influencerVideoSchema = new Schema(
   { _id: false }
 );
 
-// Featured Banner content
 const featuredBannerSchema = new Schema(
   {
     showSection: { type: Boolean, default: true },
@@ -62,7 +58,6 @@ const featuredBannerSchema = new Schema(
   { _id: false }
 );
 
-// Compare Features (Flexible, Optional)
 const featureCompareDetailSchema = new Schema(
   {
     productId: {
@@ -114,7 +109,7 @@ const attributeSchema = new Schema({
   ],
 });
 
-// --- 2. Main Product Model --- //
+// --- 2. Updated Product Model with Collections --- //
 
 const productSchema = new Schema(
   {
@@ -127,9 +122,15 @@ const productSchema = new Schema(
       ref: "Brand",
       required: true,
     },
-    productLineId: { type: mongoose.Schema.Types.ObjectId, ref: "ProductLine" }, // optional
+    productLineId: { type: mongoose.Schema.Types.ObjectId, ref: "ProductLine" },
 
     categories: [{ type: mongoose.Schema.Types.ObjectId, ref: "Category" }],
+
+    // NEW: Collections Support
+    collections: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Collection"
+    }],
 
     tagIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Tag" }],
 
@@ -137,19 +138,10 @@ const productSchema = new Schema(
     longDescription: { type: String },
 
     basePrice: { type: Number, required: true },
-    salePrice: { type: Number }, // optional special price
+    salePrice: { type: Number },
 
     basePhotos: [{ type: mongoose.Schema.Types.ObjectId, ref: "Media" }],
     featuredImage: { type: mongoose.Schema.Types.ObjectId, ref: "Media" },
-
-    // baseFeatures: { type: Map, of: mongoose.Schema.Types.ObjectId },
-    // baseFeatures: [
-    //   {
-    //     type: mongoose.Schema.Types.ObjectId,
-    //     ref: "Feature",
-    //     required: false,
-    //   },
-    // ],
 
     attributes: [attributeSchema],
     shipping: shippingSchema,
@@ -160,12 +152,12 @@ const productSchema = new Schema(
       enum: ["simple", "with_variants"],
       default: "simple",
     },
-    sku: { type: String, unique: true }, // only for 'simple' inventory
-    stock: { type: Number, default: 0 }, // for 'simple'
-    variants: [{ type: mongoose.Schema.Types.ObjectId, ref: "Variant" }], // only used for 'with_variants'
+    sku: { type: String, unique: true },
+    stock: { type: Number, default: 0 },
+    variants: [{ type: mongoose.Schema.Types.ObjectId, ref: "Variant" }],
 
-    // Product Relations (upsell, FBT, related, etc.)
-    fbtIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }], // frequently bought together
+    // Product Relations
+    fbtIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
     relatedProductIds: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
     ],
@@ -173,7 +165,7 @@ const productSchema = new Schema(
       { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
     ],
 
-    // Marketplace Links (optional)
+    // Marketplace Links
     amazonLink: String,
     flipkartLink: String,
     ecommerce: { type: Boolean, default: false },
@@ -186,7 +178,7 @@ const productSchema = new Schema(
       default: "in_stock",
     },
 
-    // Marketing Fields (OPTIONAL - embedded)
+    // Marketing Fields
     banners: {
       one: bannerSchema,
       two: bannerSchema,
@@ -198,7 +190,7 @@ const productSchema = new Schema(
       ref: "Variant",
     },
 
-    // Comparison (OPTIONAL)
+    // Comparison
     compareSection: compareSectionSchema,
 
     // SEO
@@ -207,24 +199,114 @@ const productSchema = new Schema(
 
     specifications: [
       {
-        section: { type: String, required: true }, // e.g., "General", "Display"
+        section: { type: String, required: true },
         specs: [
           {
-            key: { type: String, required: true }, // e.g., "Brand"
-            value: { type: String, required: true }, // e.g., "Samsung"
+            key: { type: String, required: true },
+            value: { type: String, required: true },
           },
         ],
       },
     ],
+
+    // NEW: Collection-specific data
+    collectionData: [{
+      collectionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Collection"
+      },
+      featuredInCollection: { type: Boolean, default: false },
+      collectionDisplayOrder: { type: Number, default: 0 },
+      collectionSpecificPrice: { type: Number }, // Special price for collection
+      collectionSpecificImages: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Media"
+      }],
+      addedToCollectionAt: { type: Date, default: Date.now }
+    }],
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+  }
 );
 
+// Existing indexes
 productSchema.index({
   name: "text",
   slug: "text",
   shortDescription: "text",
   longDescription: "text",
 });
+
+// NEW: Collection-related indexes
+productSchema.index({ collections: 1, status: 1 });
+productSchema.index({ "collectionData.collectionId": 1, "collectionData.featuredInCollection": 1 });
+
+// NEW: Methods for collection management
+productSchema.methods.addToCollection = function (collectionId, options = {}) {
+  const existingIndex = this.collections.findIndex(
+    id => id.toString() === collectionId.toString()
+  );
+
+  if (existingIndex === -1) {
+    this.collections.push(collectionId);
+
+    this.collectionData.push({
+      collectionId,
+      featuredInCollection: options.featured || false,
+      collectionDisplayOrder: options.displayOrder || 0,
+      collectionSpecificPrice: options.specialPrice || null,
+      collectionSpecificImages: options.specialImages || []
+    });
+  }
+
+  return this.save();
+};
+
+productSchema.methods.removeFromCollection = function (collectionId) {
+  this.collections = this.collections.filter(
+    id => id.toString() !== collectionId.toString()
+  );
+
+  this.collectionData = this.collectionData.filter(
+    data => data.collectionId.toString() !== collectionId.toString()
+  );
+
+  return this.save();
+};
+
+productSchema.methods.getCollectionSpecificData = function (collectionId) {
+  return this.collectionData.find(
+    data => data.collectionId.toString() === collectionId.toString()
+  );
+};
+
+// Static methods for collection queries
+productSchema.statics.getByCollection = function (collectionId, options = {}) {
+  const query = {
+    collections: collectionId,
+    status: true,
+    stockStatus: "in_stock"
+  };
+
+  return this.find(query)
+    .populate(options.populate || "brandId categories featuredImage basePhotos collections")
+    .sort(options.sort || { "collectionData.collectionDisplayOrder": 1, createdAt: -1 })
+    .limit(options.limit || 50);
+};
+
+productSchema.statics.getFeaturedByCollection = function (collectionId, limit = 10) {
+  return this.find({
+    collections: collectionId,
+    "collectionData.featuredInCollection": true,
+    status: true,
+    stockStatus: "in_stock"
+  })
+    .populate("brandId categories featuredImage basePhotos collections")
+    .sort({ "collectionData.collectionDisplayOrder": 1 })
+    .limit(limit);
+};
 
 export default mongoose.model("Product", productSchema);
