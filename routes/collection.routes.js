@@ -30,23 +30,23 @@ router.get('/', async (req, res) => {
         const now = new Date();
 
         // Only add date filters if startDate or endDate exist
-        const dateFilters = [];
-        dateFilters.push({
-            $or: [
-                { startDate: { $exists: false } },
-                { startDate: { $lte: now } }
-            ]
-        });
-        dateFilters.push({
-            $or: [
-                { endDate: { $exists: false } },
-                { endDate: { $gte: now } }
-            ]
-        });
+        // const dateFilters = [];
+        // dateFilters.push({
+        //     $or: [
+        //         { startDate: { $exists: false } },
+        //         { startDate: { $lte: now } }
+        //     ]
+        // });
+        // dateFilters.push({
+        //     $or: [
+        //         { endDate: { $exists: false } },
+        //         { endDate: { $gte: now } }
+        //     ]
+        // });
 
-        if (dateFilters.length > 0) {
-            query.$and = dateFilters;
-        }
+        // if (dateFilters.length > 0) {
+        //     query.$and = dateFilters;
+        // }
 
         const collectionsQuery = Collection.find(query)
             .populate('featuredImage bannerImage thumbnailImage')
