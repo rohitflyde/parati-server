@@ -109,6 +109,14 @@ collectionSchema.virtual('productCount', {
     count: true
 });
 
+// Add this to your collection schema after the existing virtual
+collectionSchema.virtual('products', {
+    ref: 'Product',
+    localField: '_id',
+    foreignField: 'collections'
+});
+
+
 // Indexes
 collectionSchema.index({ slug: 1 });
 collectionSchema.index({ isActive: 1, displayOrder: 1 });

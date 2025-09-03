@@ -302,32 +302,59 @@ router.get('/type/festivals', async (req, res) => {
 // ADMIN ROUTES (Protected)
 
 // Create collection
+// Update the create collection route
 router.post('/', protect, async (req, res) => {
     try {
-        const collectionData = {
-            ...req.body,
+        const { productIds, ...collectionData } = req.body;
+
+        const collection = new Collection({
+            ...collectionData,
             createdBy: req.user.id
-        };
+        });
 
         // Generate slug if not provided
-        if (!collectionData.slug && collectionData.name) {
-            collectionData.slug = collectionData.name
+        if (!collection.slug && collection.name) {
+            collection.slug = collection.name
                 .toLowerCase()
                 .replace(/[^a-z0-9]/g, '-')
                 .replace(/-+/g, '-')
                 .replace(/^-|-$/g, '');
         }
 
-        const collection = new Collection(collectionData);
         await collection.save();
 
-        // Populate references before sending response
-        await collection.populate('featuredImage bannerImage thumbnailImage');
+        // Add products to collection if provided
+        if (productIds && productIds.length > 0) {
+            await Product.updateMany(
+                { _id: { $in: productIds } },
+                { $addToSet: { collections: collection._id } }
+            );
+        }
+
+        // Populate and return the collection
+        await collection.populate([
+            'featuredImage bannerImage thumbnailImage',
+            {
+                path: 'products',
+                select: '_id name sku featuredImage basePrice salePrice',
+                populate: { path: 'featuredImage' },
+                options: { limit: 10 }
+            }
+        ]);
+
+        const populatedCollection = await Collection.findById(collection._id)
+            .populate('featuredImage bannerImage thumbnailImage')
+            .populate({
+                path: 'products',
+                select: '_id name sku featuredImage basePrice salePrice',
+                populate: { path: 'featuredImage' },
+                options: { limit: 10 }
+            });
 
         res.status(201).json({
             success: true,
             message: 'Collection created successfully',
-            collection
+            collection: populatedCollection
         });
 
     } catch (error) {
@@ -347,17 +374,20 @@ router.post('/', protect, async (req, res) => {
     }
 });
 
+
 // Update collection
 router.put('/:id', protect, async (req, res) => {
     try {
+        const { productIds, ...updateData } = req.body;
+
         const collection = await Collection.findByIdAndUpdate(
             req.params.id,
             {
-                ...req.body,
+                ...updateData,
                 lastUpdatedBy: req.user.id
             },
             { new: true, runValidators: true }
-        ).populate('featuredImage bannerImage thumbnailImage');
+        );
 
         if (!collection) {
             return res.status(404).json({
@@ -366,10 +396,37 @@ router.put('/:id', protect, async (req, res) => {
             });
         }
 
+        // Update product associations if provided
+        if (productIds !== undefined) {
+            // First remove all current products from this collection
+            await Product.updateMany(
+                { collections: collection._id },
+                { $pull: { collections: collection._id } }
+            );
+
+            // Then add the new products
+            if (productIds.length > 0) {
+                await Product.updateMany(
+                    { _id: { $in: productIds } },
+                    { $addToSet: { collections: collection._id } }
+                );
+            }
+        }
+
+        // Populate and return the updated collection
+        const populatedCollection = await Collection.findById(collection._id)
+            .populate('featuredImage bannerImage thumbnailImage')
+            .populate({
+                path: 'products',
+                select: '_id name sku featuredImage basePrice salePrice',
+                populate: { path: 'featuredImage' },
+                options: { limit: 10 }
+            });
+
         res.json({
             success: true,
             message: 'Collection updated successfully',
-            collection
+            collection: populatedCollection
         });
 
     } catch (error) {
@@ -442,31 +499,51 @@ router.post('/:id/products', protect, async (req, res) => {
             });
         }
 
-        // Add products to collection
-        const updateResults = await Promise.all(
-            productIds.map(async (productId) => {
-                try {
-                    const product = await Product.findById(productId);
-                    if (product) {
-                        return await product.addToCollection(collectionId, {
-                            featured,
-                            displayOrder
-                        });
-                    }
-                    return null;
-                } catch (error) {
-                    console.error(`Error adding product ${productId} to collection:`, error);
-                    return null;
-                }
-            })
+        // First, remove existing products that are in the new list (to avoid duplicates)
+        await Product.updateMany(
+            {
+                _id: { $in: productIds },
+                collections: collectionId
+            },
+            {
+                $pull: { collections: collectionId }
+            }
         );
 
-        const successCount = updateResults.filter(result => result !== null).length;
+        // Add products to collection
+        const updateResult = await Product.updateMany(
+            { _id: { $in: productIds } },
+            {
+                $addToSet: { collections: collectionId }
+            }
+        );
+
+        // Get updated collection with products
+        const updatedCollection = await Collection.findById(collectionId)
+            .populate('featuredImage bannerImage thumbnailImage');
+
+        const productCount = await Product.countDocuments({
+            collections: collectionId,
+            status: true
+        });
+
+        const products = await Product.find({
+            collections: collectionId,
+            status: true
+        })
+            .populate('featuredImage')
+            .limit(10)
+            .select('_id name sku featuredImage basePrice salePrice');
 
         res.json({
             success: true,
-            message: `${successCount} products added to collection`,
-            addedCount: successCount
+            message: `${updateResult.modifiedCount} products added to collection`,
+            addedCount: updateResult.modifiedCount,
+            collection: {
+                ...updatedCollection.toObject(),
+                productCount,
+                products
+            }
         });
 
     } catch (error) {
@@ -479,32 +556,87 @@ router.post('/:id/products', protect, async (req, res) => {
     }
 });
 
+// Get products for a specific collection (for admin)
+router.get('/:id/products/admin', protect, async (req, res) => {
+    try {
+        const { page = 1, limit = 100 } = req.query;
+
+        const products = await Product.find({
+            collections: req.params.id,
+            status: true
+        })
+            .populate('featuredImage')
+            .limit(parseInt(limit))
+            .skip((parseInt(page) - 1) * parseInt(limit))
+            .select('_id name sku featuredImage basePrice salePrice');
+
+        const total = await Product.countDocuments({
+            collections: req.params.id,
+            status: true
+        });
+
+        res.json({
+            success: true,
+            products,
+            total,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+
+    } catch (error) {
+        console.error('Collection products fetch error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch collection products',
+            error: error.message
+        });
+    }
+});
+
+
 // Remove products from collection
 router.delete('/:id/products', protect, async (req, res) => {
     try {
         const { productIds } = req.body;
         const collectionId = req.params.id;
 
-        const results = await Promise.all(
-            productIds.map(async (productId) => {
-                try {
-                    const product = await Product.findById(productId);
-                    if (product) {
-                        return await product.removeFromCollection(collectionId);
-                    }
-                    return null;
-                } catch (error) {
-                    console.error(`Error removing product ${productId} from collection:`, error);
-                    return null;
-                }
-            })
+        const updateResult = await Product.updateMany(
+            { _id: { $in: productIds } },
+            {
+                $pull: { collections: collectionId }
+            }
         );
 
-        const successCount = results.filter(result => result !== null).length;
+        // Get updated collection with products
+        const updatedCollection = await Collection.findById(collectionId)
+            .populate('featuredImage bannerImage thumbnailImage');
+
+        const productCount = await Product.countDocuments({
+            collections: collectionId,
+            status: true
+        });
+
+        const products = await Product.find({
+            collections: collectionId,
+            status: true
+        })
+            .populate('featuredImage')
+            .limit(10)
+            .select('_id name sku featuredImage basePrice salePrice');
 
         res.json({
             success: true,
-            message: `${successCount} products removed from collection`
+            message: `${updateResult.modifiedCount} products removed from collection`,
+            removedCount: updateResult.modifiedCount,
+            collection: {
+                ...updatedCollection.toObject(),
+                productCount,
+                products
+            }
         });
 
     } catch (error) {
@@ -512,6 +644,59 @@ router.delete('/:id/products', protect, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to remove products from collection',
+            error: error.message
+        });
+    }
+});
+
+router.get('/:id/full', protect, async (req, res) => {
+    try {
+        const { page = 1, limit = 20 } = req.query;
+
+        const collection = await Collection.findById(req.params.id)
+            .populate('featuredImage bannerImage thumbnailImage');
+
+        if (!collection) {
+            return res.status(404).json({
+                success: false,
+                message: 'Collection not found'
+            });
+        }
+
+        const productCount = await Product.countDocuments({
+            collections: collection._id,
+            status: true
+        });
+
+        const products = await Product.find({
+            collections: collection._id,
+            status: true
+        })
+            .populate('featuredImage brandId categories')
+            .limit(parseInt(limit))
+            .skip((parseInt(page) - 1) * parseInt(limit))
+            .sort({ createdAt: -1 });
+
+        res.json({
+            success: true,
+            collection: {
+                ...collection.toObject(),
+                productCount,
+                products,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total: productCount,
+                    pages: Math.ceil(productCount / limit)
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Collection full fetch error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch collection',
             error: error.message
         });
     }
