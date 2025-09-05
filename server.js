@@ -36,7 +36,8 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'https://parati-superadmin.vercel.app',
-  'https://parati-client.vercel.app'
+  'https://parati-client.vercel.app',
+  'https://www.houseofparati.com'
 ];
 
 app.use(cors({
