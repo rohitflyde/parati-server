@@ -109,10 +109,6 @@ export const googleAuthHandler = async (req, res) => {
             });
         }
 
-        // Generate JWT tokens
-        const accessToken = generateAccessToken(user);
-        const refreshToken = generateRefreshToken(user);
-
         // After user is fetched/created:
         if (!user.phone || !user.isPhoneVerified) {
             return res.json({
@@ -123,6 +119,25 @@ export const googleAuthHandler = async (req, res) => {
                 email: user.email,
             });
         }
+
+        // if phone verified → return tokens + user
+        const accessToken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
+        return res.json({
+            success: true,
+            needsPhone: false,
+            accessToken,
+            refreshToken,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                role: user.role,
+                isPhoneVerified: user.isPhoneVerified,
+            }
+        });
+
 
 
     } catch (error) {
@@ -254,24 +269,17 @@ export const loginUser = async (req, res) => {
 export const sendOtpForUser = async (req, res) => {
     try {
         const { name, email, phone } = req.body;
-
         if (!phone) {
-            return res.status(400).json({
-                success: false,
-                message: "Phone number is required"
-            });
+            return res.status(400).json({ success: false, message: "Phone number is required" });
         }
 
-        // Normalize phone number
         const normalizedPhone = phone.replace(/\D/g, '');
         if (normalizedPhone.length !== 10) {
-            return res.status(400).json({
-                success: false,
-                message: "Please enter a valid 10-digit phone number"
-            });
+            return res.status(400).json({ success: false, message: "Please enter a valid 10-digit phone number" });
         }
 
         let user = await User.findOne({ phone: normalizedPhone });
+        const existedBefore = !!user;
 
         if (!user) {
             user = await User.create({
@@ -284,60 +292,42 @@ export const sendOtpForUser = async (req, res) => {
             });
         }
 
-        // Generate OTP
+        // flags for frontend flow
+        const needsDetails = !user.name || (user.email || '').endsWith('@temp.com');
+
+        // Generate OTP (overwrite if exists)
         const otp = generateOtp();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-        // ✅ Save OTP with upsert (overwrite if exists)
-        const otpRecord = await OTP.findOneAndUpdate(
-            { email: user.email },
-            { otp, expiresAt },
-            { upsert: true, new: true }
-        );
+        // store OTP against BOTH identifiers to be robust
+        await OTP.deleteMany({ $or: [{ email: user.email }, { phone: normalizedPhone }] });
+        await OTP.create({ email: user.email, phone: normalizedPhone, otp, expiresAt });
 
+        // Send SMS
         try {
-            // Send SMS
             const smsText = `Your OTP to log in to ExPro is ${otp}. It is valid for 10 minutes. Do not share it with anyone.`;
-            const smsResponse = await SendSMS({
-                phone: normalizedPhone,
-                message: smsText
-            });
-
-            console.log('SMSWaale response:', smsResponse);
+            await SendSMS({ phone: normalizedPhone, message: smsText });
         } catch (err) {
-            console.error('Failed to send OTP via SMSWaale:', err.message);
-
-            // ✅ Delete OTP if SMS fails
-            await OTP.deleteOne({ _id: otpRecord._id });
-
-            return res.status(500).json({
-                success: false,
-                message: "Failed to send OTP via SMS"
-            });
+            await OTP.deleteMany({ $or: [{ email: user.email }, { phone: normalizedPhone }] });
+            return res.status(500).json({ success: false, message: "Failed to send OTP via SMS" });
         }
 
-        // Generate tokens
-        const accessToken = generateAccessToken(user);
-        const refreshToken = generateRefreshToken(user);
-
+        // NOTE: tokens optional here; typically issue after verify
         return res.status(200).json({
             success: true,
             message: "OTP sent successfully",
             phone: normalizedPhone,
             userId: user._id,
-            accessToken,
-            refreshToken
+            isNewUser: !existedBefore,
+            needsDetails
         });
 
     } catch (error) {
         console.error('Send OTP error:', error);
-        return res.status(500).json({
-            success: false,
-            message: "Failed to send OTP",
-            error: error.message
-        });
+        return res.status(500).json({ success: false, message: "Failed to send OTP", error: error.message });
     }
 };
+
 
 
 
@@ -416,80 +406,99 @@ export const updateUserDetails = async (req, res) => {
 
 export const verifyOtp = async (req, res) => {
     try {
-        const { email, otp, phone } = req.body;
+        const { email, otp, phone, name, finalEmail } = req.body;
 
-        // Find user by phone if provided, otherwise by email
+        // Resolve user & identifiers
         let user;
-        let userEmail = email; // Use a different variable name to avoid const reassignment
+        let resolvedEmail = email;
+        let normalizedPhone = phone ? phone.replace(/\D/g, '') : null;
 
-        if (phone) {
-            const normalizedPhone = phone.replace(/\D/g, '');
+        if (normalizedPhone) {
             user = await User.findOne({ phone: normalizedPhone });
-            if (!user) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'User not found'
-                });
-            }
-            // Use the user's email for OTP lookup
-            userEmail = user.email;
+            if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+            resolvedEmail = user.email;
         }
 
-        // Find the most recent OTP
-        const record = await OTP.findOneAndUpdate(
-            { email: user.email },
-            { otp },
-            { upsert: true, new: true }
-        ).sort({ createdAt: -1 });
+        if (!user && resolvedEmail) {
+            user = await User.findOne({ email: resolvedEmail });
+            if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+            normalizedPhone = user.phone;
+        }
+
+        // Fetch latest OTP
+        const record = await OTP.findOne({
+            $or: [{ email: resolvedEmail }, { phone: normalizedPhone }]
+        }).sort({ createdAt: -1 });
 
         if (!record || record.otp !== otp) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid OTP'
-            });
+            return res.status(401).json({ success: false, message: 'Invalid OTP' });
         }
-
         if (record.expiresAt < new Date()) {
-            return res.status(410).json({
-                success: false,
-                message: 'OTP expired'
+            return res.status(410).json({ success: false, message: 'OTP expired' });
+        }
+
+        // Check if user needs details (new user or has temp email)
+        const needsDetails = !user.name || (user.email || '').endsWith('@temp.com');
+
+        // If name and finalEmail are provided, update user details
+        if (name && finalEmail && needsDetails) {
+            const updates = {
+                isPhoneVerified: true,
+                name: name.trim(),
+                email: finalEmail.trim().toLowerCase()
+            };
+
+            const updatedUser = await User.findByIdAndUpdate(user._id, updates, {
+                new: true,
+                runValidators: true
+            });
+
+            // Cleanup OTPs
+            await OTP.deleteMany({ $or: [{ email: updatedUser.email }, { phone: updatedUser.phone }] });
+
+            // Generate tokens
+            const accessToken = generateAccessToken(updatedUser);
+            const refreshToken = generateRefreshToken(updatedUser);
+
+            return res.json({
+                success: true,
+                message: 'OTP verified and profile updated successfully',
+                accessToken,
+                refreshToken,
+                user: {
+                    id: updatedUser._id,
+                    name: updatedUser.name,
+                    email: updatedUser.email,
+                    phone: updatedUser.phone,
+                    role: updatedUser.role,
+                    isPhoneVerified: true
+                }
             });
         }
 
-        // If user not found by phone, find by email
-        if (!user) {
-            user = await User.findOne({ email: userEmail });
-            if (!user) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'User not found'
-                });
-            }
+        // If no details provided but user needs them, return needsDetails flag
+        if (needsDetails) {
+            return res.json({
+                success: true,
+                needsDetails: true,
+                message: 'Please complete your profile details',
+                userId: user._id
+            });
         }
 
-        // Update user with phone verification
-        const updatedUser = await User.findOneAndUpdate(
-            { _id: user._id },
-            {
-                isPhoneVerified: true,
-                ...(phone && !user.phone && { phone: phone.replace(/\D/g, '') }) // Add phone if provided and not exists
-            },
+        // Existing user with complete profile - just verify and return tokens
+        const updatedUser = await User.findByIdAndUpdate(
+            user._id,
+            { isPhoneVerified: true },
             { new: true }
         );
 
-        // Generate new tokens after verification
+        // Cleanup OTPs
+        await OTP.deleteMany({ $or: [{ email: updatedUser.email }, { phone: updatedUser.phone }] });
+
+        // Generate tokens
         const accessToken = generateAccessToken(updatedUser);
         const refreshToken = generateRefreshToken(updatedUser);
-
-        // Clean up OTPs
-        // Clean up OTPs for this user (both email & phone based)
-        await OTP.deleteMany({
-            $or: [
-                { email: updatedUser.email },
-                { phone: updatedUser.phone }
-            ]
-        });
-
 
         return res.json({
             success: true,
@@ -508,11 +517,7 @@ export const verifyOtp = async (req, res) => {
 
     } catch (error) {
         console.error('OTP verification error:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'OTP verification failed',
-            error: error.message
-        });
+        return res.status(500).json({ success: false, message: 'OTP verification failed', error: error.message });
     }
 };
 

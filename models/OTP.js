@@ -25,6 +25,8 @@ const otpSchema = new mongoose.Schema({
 });
 
 // Add compound index
-otpSchema.index({ email: 1, phone: 1 }, { unique: true, sparse: true });
+otpSchema.index({ email: 1 }, { unique: true, sparse: true });
+otpSchema.index({ phone: 1 }, { unique: true, sparse: true });
+
 
 export default mongoose.model("OTP", otpSchema);

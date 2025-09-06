@@ -18,9 +18,9 @@ const addressSchema = new mongoose.Schema(
 
 const userSchema = new mongoose.Schema(
   {
-    name: { type: String},
+    name: { type: String },
     email: { type: String, unique: true, sparse: true },
-    password: { type: String},
+    password: { type: String },
     role: {
       type: String,
       enum: ['customer', 'admin', 'guest'],
@@ -30,11 +30,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    phone: { type: String, required: true},
+    phone: { type: String, required: true, unique: true },
     isPhoneVerified: { type: Boolean, default: false },
 
-    resetPasswordToken: {type: String},
-    resetPasswordExpires: {type: Date},
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date },
 
     addresses: [addressSchema],
   },
