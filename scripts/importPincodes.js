@@ -4,7 +4,7 @@ import fs from 'fs';
 import csv from 'csv-parser';
 
 // Connect to your MongoDB
-mongoose.connect('mongodb+srv://rohit:Rohit254920@cluster0.fcwrazo.mongodb.net/itel?retryWrites=true&w=majority&appName=Cluster0', {
+mongoose.connect('mongodb+srv://rohit:Rohit254920@cluster0.fcwrazo.mongodb.net/parati?retryWrites=true&w=majority&appName=Cluster0', {
     useNewUrlParser: true,
     useUnifiedTopology: true
 });
