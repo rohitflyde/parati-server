@@ -139,7 +139,7 @@ export const verifyRazorpayPayment = async (req, res) => {
 
         await sendEmail({
           to: updatedOrder.user.email,
-          subject: `Your Itel Order #${updatedOrder._id.toString().slice(-6).toUpperCase()} Confirmation`,
+          subject: `Your House of Parati Order #${updatedOrder._id.toString().slice(-6).toUpperCase()} Confirmation`,
           html: emailHtml
         });
       } catch (emailErr) {
@@ -367,7 +367,7 @@ export const verifyCodTokenPayment = async (req, res) => {
 
         await sendEmail({
           to: updatedOrder.user.email,
-          subject: `Your Itel Order #${orderIdShort} Confirmation`,
+          subject: `Your House of Parati Order #${orderIdShort} Confirmation`,
           html: emailHtml,
         });
 
