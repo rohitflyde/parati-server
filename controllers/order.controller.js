@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Order from "../models/Order.js";
+import Product from '../models/Product.js'
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import User from "../models/User.js";
@@ -92,6 +93,25 @@ export const verifyRazorpayPayment = async (req, res) => {
     )
       .populate('items.product')
       .populate('user', 'name email phone');
+
+
+
+    for (const item of updatedOrder.items) {
+      const product = await Product.findById(item.product);
+
+      if (!product) continue;
+
+      if (product.stock < item.quantity) {
+        return res.status(400).json({
+          error: true,
+          message: `Not enough stock for ${product.name}. Only ${product.stock} left`
+        });
+      }
+
+      product.stock -= item.quantity;
+      await product.save();
+    }
+
 
     // ✅ Send Order Confirmation SMS for Razorpay Payment
     try {
@@ -236,28 +256,28 @@ export const placeOrder = async (req, res) => {
 
     // 🚀 Push to Shiprocket
     try {
-      const shiprocketRes = await createShiprocketOrder(order);
+      const populatedOrder = await Order.findById(order._id)
+        .populate("items.product");
 
-      // Check if Shiprocket response indicates success
+      const shiprocketRes = await createShiprocketOrder(populatedOrder);
+
       if (shiprocketRes && shiprocketRes.order_id) {
         await Order.findByIdAndUpdate(order._id, {
           shiprocketOrderId: shiprocketRes.order_id,
           awbCode: shiprocketRes.awb_code || null,
           courierName: shiprocketRes.courier_name || null,
           trackingUrl: shiprocketRes.tracking_url || null,
-          status: 'confirmed' // Update status to confirmed
+          status: "confirmed"
         });
 
         console.log("✅ Order pushed to Shiprocket:", shiprocketRes.order_id);
       } else {
         console.warn("⚠️ Shiprocket order created but no order_id returned:", shiprocketRes);
       }
-
     } catch (err) {
       console.error("❌ Failed to create Shiprocket order:", err.message);
-      // Don't fail the entire order if Shiprocket fails
-      // You might want to set a flag or send a notification
     }
+
 
 
     return res.status(201).json({
@@ -304,6 +324,23 @@ export const verifyCodTokenPayment = async (req, res) => {
       { new: true }
     ).populate('items.product').populate('user', 'name email phone');
 
+
+
+    for (const item of updatedOrder.items) {
+      const product = await Product.findById(item.product);
+
+      if (!product) continue;
+
+      if (product.stock < item.quantity) {
+        return res.status(400).json({
+          error: true,
+          message: `Not enough stock for ${product.name}. Only ${product.stock} left`
+        });
+      }
+
+      product.stock -= item.quantity;
+      await product.save();
+    }
 
 
     // ✅ Order Confirmation SMS + Email

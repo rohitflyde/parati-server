@@ -22,36 +22,38 @@ export async function getShiprocketToken() {
 
 // 🚀 Create Shiprocket Order
 export async function createShiprocketOrder(order) {
+
+    console.log('order: ', order)
     try {
         const token = await getShiprocketToken();
 
         // Get product names safely
         const orderItems = order.items.map(item => {
-            // Handle cases where product might not be populated
-            let productName = "Product";
-            if (item.product) {
-                if (typeof item.product === 'object') {
-                    productName = item.product.name || "Product";
-                } else if (typeof item.product === 'string') {
-                    // If product is just an ID, we'll need to fetch details
-                    productName = "Product";
-                }
-            }
+            const product = item.product || {};
+            const shipping = product.shipping || {};
 
             return {
-                name: productName,
-                sku: item.product?._id?.toString() || `item_${Date.now()}`,
+                name: product.name || product.title || "Product",
+                sku: product.sku?.toString().trim() || product._id?.toString() || `item_${Date.now()}`,
                 units: item.quantity,
-                selling_price: item.price,
-                hsn: 7113 // Default HSN code for jewelry
+                selling_price: Number(item.price || product.basePrice || product.sp || 1),
+                hsn: product.hsn || 7113,
+
+                // ✅ Pull from product schema
+                length: shipping?.dimensions?.length || 5,
+                breadth: shipping?.dimensions?.width || 5,
+                height: shipping?.dimensions?.height || 5,
+                weight: shipping?.weight || 5
             };
         });
 
         // Ensure all required address fields are present
         const shippingAddress = order.shippingAddress || {};
 
+        const totalPrice = order.remainingCOD > 1 ? order.remainingCOD : order.total
+
         const payload = {
-            order_id: order._id.toString(),
+            order_id: order.sku?.toString() || order._id.toString(),
             order_date: new Date(order.createdAt || Date.now()).toISOString(),
             channel: "expro",
             pickup_location: "Home",
@@ -80,11 +82,11 @@ export async function createShiprocketOrder(order) {
             order_items: orderItems,
             payment_method: order.paymentMethod === "cod" ? "COD" : "Prepaid",
             total_discount: 0,
-            sub_total: order.remainingCOD,
-            length: 10,
-            breadth: 10,
-            height: 5,
-            weight: 0.2,
+            sub_total: totalPrice,
+            length: shippingAddress.shipping?.dimensions?.length || 5,
+            breadth: shippingAddress.shipping?.dimensions?.length || 5,
+            height: shippingAddress.shipping?.dimensions?.length || 5,
+            weight: shippingAddress.shipping?.weight || 5,
             customer_gstin: "",
             vendor_gstin: "",
             qc_check: true
