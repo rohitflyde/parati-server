@@ -58,16 +58,17 @@ export const createRazorpayOrder = async (req, res) => {
   }
 };
 
-// Verify Razorpay Payment
+
+// ✅ Verify Razorpay Payment
 export const verifyRazorpayPayment = async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
 
     // Create signature
     const generated_signature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest('hex');
+      .digest("hex");
 
     // Verify signature
     if (generated_signature !== razorpay_signature) {
@@ -81,8 +82,8 @@ export const verifyRazorpayPayment = async (req, res) => {
     const updatedOrder = await Order.findByIdAndUpdate(
       orderId,
       {
-        status: 'confirmed',
-        paymentStatus: 'completed',
+        status: "confirmed",
+        paymentStatus: "completed",
         razorpayOrderId: razorpay_order_id,
         razorpayPaymentId: razorpay_payment_id,
         razorpaySignature: razorpay_signature,
@@ -91,71 +92,40 @@ export const verifyRazorpayPayment = async (req, res) => {
       },
       { new: true }
     )
-      .populate('items.product')
-      .populate('user', 'name email phone');
+      .populate("items.product")
+      .populate("user", "name email phone");
 
-
-
+    // ✅ Deduct stock
     for (const item of updatedOrder.items) {
       const product = await Product.findById(item.product);
-
       if (!product) continue;
-
       if (product.stock < item.quantity) {
         return res.status(400).json({
           error: true,
           message: `Not enough stock for ${product.name}. Only ${product.stock} left`
         });
       }
-
       product.stock -= item.quantity;
       await product.save();
     }
 
-
-    // ✅ Send Order Confirmation SMS for Razorpay Payment
+    // ✅ Push to Shiprocket after payment success
     try {
-      const customerName = updatedOrder?.user?.name || 'Customer';
-      const orderIdShort = updatedOrder?._id?.toString().slice(-6).toUpperCase(); // short order ID
-      const orderDate = new Date().toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
-      });
+      const populatedOrder = await Order.findById(updatedOrder._id).populate("items.product");
+      const shiprocketRes = await createShiprocketOrder(populatedOrder);
 
-      const smsMessage = `Hi ${customerName}, your order ${orderIdShort} has been placed successfully on ${orderDate} via ExPro! We'll notify you once it's shipped. Thanks for shopping with us.`;
-
-      await SendSMS({
-        phone: updatedOrder?.shippingAddress?.phone,
-        message: smsMessage
-      });
-
-      console.log(`✅ Order confirmation SMS sent to ${updatedOrder?.shippingAddress?.phone}`);
-
-
-      try {
-        // Generate email HTML
-        const emailHtml = generateOrderEmail(updatedOrder);
-
-        await sendEmail({
-          to: updatedOrder.user.email,
-          subject: `Your House of Parati Order #${updatedOrder._id.toString().slice(-6).toUpperCase()} Confirmation`,
-          html: emailHtml
+      if (shiprocketRes && shiprocketRes.order_id) {
+        await Order.findByIdAndUpdate(updatedOrder._id, {
+          shiprocketOrderId: shiprocketRes.order_id,
+          awbCode: shiprocketRes.awb_code || null,
+          courierName: shiprocketRes.courier_name || null,
+          trackingUrl: shiprocketRes.tracking_url || null
         });
-      } catch (emailErr) {
-        console.error('❌ Failed to send order confirmation email:', emailErr.message);
+
+        console.log("✅ Prepaid order pushed to Shiprocket:", shiprocketRes.order_id);
       }
-
-      // try {
-      //   await pushOrderToUnicommerce(updatedOrder);
-      //   console.log("✅ Order synced with Unicommerce for Razorpay");
-      // } catch (err) {
-      //   console.error("⚠️ Failed to sync prepaid order with Unicommerce:", err.message);
-      // }
-
-
-    } catch (smsErr) {
-      console.error('❌ Failed to send order confirmation SMS:', smsErr.message);
+    } catch (err) {
+      console.error("❌ Failed to push prepaid order to Shiprocket:", err.message);
     }
 
     res.status(200).json({
@@ -163,7 +133,6 @@ export const verifyRazorpayPayment = async (req, res) => {
       order: updatedOrder,
       message: "Payment verified successfully"
     });
-
   } catch (error) {
     console.error("❌ Payment Verification Error:", error);
     res.status(500).json({
@@ -174,6 +143,8 @@ export const verifyRazorpayPayment = async (req, res) => {
 };
 
 
+
+// ✅ Place Order
 export const placeOrder = async (req, res) => {
   try {
     const { items, shippingAddress, paymentMethod, total } = req.body;
@@ -222,16 +193,16 @@ export const placeOrder = async (req, res) => {
       shippingAddress: shippingAddressData,
       paymentMethod,
       total,
-      status: 'pending', // initially pending
-      paymentStatus: 'pending',
+      status: "pending", // initially pending
+      paymentStatus: "pending",
       isPaid: false
     };
 
     // ✅ COD Flow with Token
-    if (paymentMethod === 'cod') {
+    if (paymentMethod === "cod") {
       orderData.tokenAmount = 1000;
       orderData.remainingCOD = total - 1000;
-      orderData.tokenPaymentStatus = 'pending';
+      orderData.tokenPaymentStatus = "pending";
 
       // Razorpay order for token payment (1000 INR)
       const options = {
@@ -246,50 +217,24 @@ export const placeOrder = async (req, res) => {
     }
 
     // ✅ Razorpay (full payment) flow
-    if (paymentMethod === 'razorpay') {
-      orderData.status = 'processing';
-      orderData.paymentStatus = 'pending';
+    if (paymentMethod === "razorpay") {
+      orderData.status = "processing";
+      orderData.paymentStatus = "pending";
       orderData.isPaid = false;
     }
 
     const order = await Order.create(orderData);
 
-    // 🚀 Push to Shiprocket
-    try {
-      const populatedOrder = await Order.findById(order._id)
-        .populate("items.product");
-
-      const shiprocketRes = await createShiprocketOrder(populatedOrder);
-
-      if (shiprocketRes && shiprocketRes.order_id) {
-        await Order.findByIdAndUpdate(order._id, {
-          shiprocketOrderId: shiprocketRes.order_id,
-          awbCode: shiprocketRes.awb_code || null,
-          courierName: shiprocketRes.courier_name || null,
-          trackingUrl: shiprocketRes.tracking_url || null,
-          status: "confirmed"
-        });
-
-        console.log("✅ Order pushed to Shiprocket:", shiprocketRes.order_id);
-      } else {
-        console.warn("⚠️ Shiprocket order created but no order_id returned:", shiprocketRes);
-      }
-    } catch (err) {
-      console.error("❌ Failed to create Shiprocket order:", err.message);
-    }
-
-
-
     return res.status(201).json({
       success: true,
-      message: paymentMethod === 'cod'
-        ? "COD order created. Token payment required."
-        : "Order created. Proceed to payment.",
+      message:
+        paymentMethod === "cod"
+          ? "COD order created. Token payment required."
+          : "Order created. Proceed to payment.",
       order,
       paymentRequired: true,
-      paymentType: paymentMethod === 'cod' ? 'cod_token' : 'razorpay'
+      paymentType: paymentMethod === "cod" ? "cod_token" : "razorpay"
     });
-
   } catch (err) {
     console.error("❌ Place Order Error:", err);
     return res.status(500).json({
@@ -300,14 +245,16 @@ export const placeOrder = async (req, res) => {
 };
 
 
+
+// ✅ Verify COD Token Payment
 export const verifyCodTokenPayment = async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
 
     const generated_signature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest('hex');
+      .digest("hex");
 
     if (generated_signature !== razorpay_signature) {
       return res.status(400).json({ error: true, message: "Token payment verification failed" });
@@ -316,67 +263,45 @@ export const verifyCodTokenPayment = async (req, res) => {
     const updatedOrder = await Order.findByIdAndUpdate(
       orderId,
       {
-        status: 'confirmed',
-        tokenPaymentStatus: 'paid',
+        status: "confirmed",
+        tokenPaymentStatus: "paid",
         razorpayTokenPaymentId: razorpay_payment_id,
         razorpayTokenSignature: razorpay_signature
       },
       { new: true }
-    ).populate('items.product').populate('user', 'name email phone');
+    ).populate("items.product").populate("user", "name email phone");
 
-
-
+    // ✅ Deduct stock
     for (const item of updatedOrder.items) {
       const product = await Product.findById(item.product);
-
       if (!product) continue;
-
       if (product.stock < item.quantity) {
         return res.status(400).json({
           error: true,
           message: `Not enough stock for ${product.name}. Only ${product.stock} left`
         });
       }
-
       product.stock -= item.quantity;
       await product.save();
     }
 
-
-    // ✅ Order Confirmation SMS + Email
+    // ✅ Push COD order to Shiprocket after token paid
     try {
-      const customerName = updatedOrder?.user?.name || "Customer";
-      const orderIdShort = updatedOrder?._id?.toString().slice(-6).toUpperCase();
-      const orderDate = new Date().toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
+      const populatedOrder = await Order.findById(updatedOrder._id).populate("items.product");
+      const shiprocketRes = await createShiprocketOrder(populatedOrder);
 
-      const smsMessage = `Hi ${customerName}, your order ${orderIdShort} has been placed successfully on ${orderDate} via ExPro! We'll notify you once it's shipped. Thanks for shopping with us.`;
-
-      await SendSMS({
-        phone: updatedOrder?.shippingAddress?.phone,
-        message: smsMessage,
-      });
-
-      console.log(`✅ Order confirmation SMS sent to ${updatedOrder?.shippingAddress?.phone}`);
-
-      try {
-        const emailHtml = generateOrderEmail(updatedOrder);
-
-        await sendEmail({
-          to: updatedOrder.user.email,
-          subject: `Your House of Parati Order #${orderIdShort} Confirmation`,
-          html: emailHtml,
+      if (shiprocketRes && shiprocketRes.order_id) {
+        await Order.findByIdAndUpdate(updatedOrder._id, {
+          shiprocketOrderId: shiprocketRes.order_id,
+          awbCode: shiprocketRes.awb_code || null,
+          courierName: shiprocketRes.courier_name || null,
+          trackingUrl: shiprocketRes.tracking_url || null
         });
 
-        console.log("✅ Order confirmation Email sent");
-      } catch (emailErr) {
-        console.error("❌ Failed to send order confirmation email:", emailErr.message);
+        console.log("✅ COD order pushed to Shiprocket:", shiprocketRes.order_id);
       }
-    } catch (smsErr) {
-      console.error("❌ Failed to send order confirmation SMS:", smsErr.message);
+    } catch (err) {
+      console.error("❌ Failed to push COD order to Shiprocket:", err.message);
     }
 
     res.status(200).json({
@@ -389,6 +314,7 @@ export const verifyCodTokenPayment = async (req, res) => {
     res.status(500).json({ error: true, message: "Failed to verify COD token payment" });
   }
 };
+
 
 
 
