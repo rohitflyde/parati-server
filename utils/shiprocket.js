@@ -53,7 +53,7 @@ export async function createShiprocketOrder(order) {
         const totalPrice = order.remainingCOD > 1 ? order.remainingCOD : order.total
 
         const payload = {
-            order_id: order.sku?.toString() || order._id.toString(),
+            order_id: order._id?.toString()?.slice(-8)?.toUpperCase(),
             order_date: new Date(order.createdAt || Date.now()).toISOString(),
             channel: "expro",
             pickup_location: "Home",
