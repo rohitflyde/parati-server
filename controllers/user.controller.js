@@ -406,99 +406,80 @@ export const updateUserDetails = async (req, res) => {
 
 export const verifyOtp = async (req, res) => {
     try {
-        const { email, otp, phone, name, finalEmail } = req.body;
+        const { email, otp, phone } = req.body;
 
-        // Resolve user & identifiers
+        // Find user by phone if provided, otherwise by email
         let user;
-        let resolvedEmail = email;
-        let normalizedPhone = phone ? phone.replace(/\D/g, '') : null;
+        let userEmail = email; // Use a different variable name to avoid const reassignment
 
-        if (normalizedPhone) {
+        if (phone) {
+            const normalizedPhone = phone.replace(/\D/g, '');
             user = await User.findOne({ phone: normalizedPhone });
-            if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-            resolvedEmail = user.email;
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'User not found'
+                });
+            }
+            // Use the user's email for OTP lookup
+            userEmail = user.email;
         }
 
-        if (!user && resolvedEmail) {
-            user = await User.findOne({ email: resolvedEmail });
-            if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-            normalizedPhone = user.phone;
-        }
-
-        // Fetch latest OTP
-        const record = await OTP.findOne({
-            $or: [{ email: resolvedEmail }, { phone: normalizedPhone }]
-        }).sort({ createdAt: -1 });
+        // Find the most recent OTP
+        const record = await OTP.findOneAndUpdate(
+            { email: user.email },
+            { otp },
+            { upsert: true, new: true }
+        ).sort({ createdAt: -1 });
 
         if (!record || record.otp !== otp) {
-            return res.status(401).json({ success: false, message: 'Invalid OTP' });
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid OTP'
+            });
         }
+
         if (record.expiresAt < new Date()) {
-            return res.status(410).json({ success: false, message: 'OTP expired' });
+            return res.status(410).json({
+                success: false,
+                message: 'OTP expired'
+            });
         }
 
-        // Check if user needs details (new user or has temp email)
-        const needsDetails = !user.name || (user.email || '').endsWith('@temp.com');
+        // If user not found by phone, find by email
+        if (!user) {
+            user = await User.findOne({ email: userEmail });
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'User not found'
+                });
+            }
+        }
 
-        // If name and finalEmail are provided, update user details
-        if (name && finalEmail && needsDetails) {
-            const updates = {
+        // Update user with phone verification
+        const updatedUser = await User.findOneAndUpdate(
+            { _id: user._id },
+            {
                 isPhoneVerified: true,
-                name: name.trim(),
-                email: finalEmail.trim().toLowerCase()
-            };
-
-            const updatedUser = await User.findByIdAndUpdate(user._id, updates, {
-                new: true,
-                runValidators: true
-            });
-
-            // Cleanup OTPs
-            await OTP.deleteMany({ $or: [{ email: updatedUser.email }, { phone: updatedUser.phone }] });
-
-            // Generate tokens
-            const accessToken = generateAccessToken(updatedUser);
-            const refreshToken = generateRefreshToken(updatedUser);
-
-            return res.json({
-                success: true,
-                message: 'OTP verified and profile updated successfully',
-                accessToken,
-                refreshToken,
-                user: {
-                    id: updatedUser._id,
-                    name: updatedUser.name,
-                    email: updatedUser.email,
-                    phone: updatedUser.phone,
-                    role: updatedUser.role,
-                    isPhoneVerified: true
-                }
-            });
-        }
-
-        // If no details provided but user needs them, return needsDetails flag
-        if (needsDetails) {
-            return res.json({
-                success: true,
-                needsDetails: true,
-                message: 'Please complete your profile details',
-                userId: user._id
-            });
-        }
-
-        // Existing user with complete profile - just verify and return tokens
-        const updatedUser = await User.findByIdAndUpdate(
-            user._id,
-            { isPhoneVerified: true },
+                ...(phone && !user.phone && { phone: phone.replace(/\D/g, '') }) // Add phone if provided and not exists
+            },
             { new: true }
         );
 
-        // Cleanup OTPs
-        await OTP.deleteMany({ $or: [{ email: updatedUser.email }, { phone: updatedUser.phone }] });
-
-        // Generate tokens
+        // Generate new tokens after verification
         const accessToken = generateAccessToken(updatedUser);
         const refreshToken = generateRefreshToken(updatedUser);
+
+        // Clean up OTPs
+        // Clean up OTPs for this user (both email & phone based)
+        await OTP.deleteMany({
+            $or: [
+                { email: updatedUser.email },
+                { phone: updatedUser.phone }
+            ]
+        });
+
 
         return res.json({
             success: true,
@@ -517,7 +498,11 @@ export const verifyOtp = async (req, res) => {
 
     } catch (error) {
         console.error('OTP verification error:', error);
-        return res.status(500).json({ success: false, message: 'OTP verification failed', error: error.message });
+        return res.status(500).json({
+            success: false,
+            message: 'OTP verification failed',
+            error: error.message
+        });
     }
 };
 
