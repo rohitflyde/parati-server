@@ -330,46 +330,133 @@ export const razorpayWebhook = async (req, res) => {
       .digest("hex");
 
     if (expectedSignature !== signature) {
+      console.error("❌ Invalid webhook signature");
       return res.status(400).json({ error: true, message: "Invalid webhook signature" });
     }
 
     const event = body.event;
+    console.log(`🔔 Webhook Received: ${event}`);
 
+    // ✅ PAYMENT CAPTURED - Main event
     if (event === "payment.captured") {
       const payment = body.payload.payment.entity;
+      const orderId = payment.notes?.orderId || payment.receipt?.replace("order_", "") || payment.order_id;
 
-      // Razorpay orderId hamesha "receipt" me hota hai jo tumne create time pe set kiya tha
-      const receipt = payment.order_id ? payment.order_id : null;
-
-      if (!receipt) {
-        console.warn("⚠️ Webhook received but no order_id found in payment entity");
+      if (!orderId) {
+        console.warn("⚠️ No order ID found in payment:", payment.id);
         return res.json({ status: "ok" });
       }
 
-      // receipt ka format tumne `order_${orderId}` set kiya tha
-      const dbOrderId = receipt.replace("order_", "");
+      const order = await Order.findById(orderId)
+        .populate("items.product")
+        .populate("user", "name email phone");
 
-      const order = await Order.findById(dbOrderId);
       if (!order) {
-        console.warn("⚠️ Order not found for webhook:", dbOrderId);
+        console.warn("⚠️ Order not found:", orderId);
         return res.json({ status: "ok" });
+      }
+
+      // ✅ Check if already processed
+      if (order.paymentStatus === "completed") {
+        console.log("ℹ️ Order already paid:", orderId);
+        return res.json({ status: "ok" });
+      }
+
+      // ✅ Determine payment type (COD Token vs Full Payment)
+      const isCodTokenPayment = order.paymentMethod === "cod" && payment.amount === 100000; // ₹1000 in paise
+      const isFullPayment = order.paymentMethod === "razorpay";
+
+      let updateData = {
+        razorpayPaymentId: payment.id,
+        razorpayOrderId: payment.order_id,
+        paidAt: new Date()
+      };
+
+      if (isCodTokenPayment) {
+        // ✅ COD Token Payment
+        updateData.tokenPaymentStatus = "paid";
+        updateData.paymentStatus = "pending"; // COD balance still pending
+        updateData.isPaid = false;
+        updateData.status = "confirmed";
+
+        console.log(`✅ COD Token paid for order: ${orderId}`);
+      } else if (isFullPayment) {
+        // ✅ Full Prepaid Payment
+        updateData.paymentStatus = "completed";
+        updateData.isPaid = true;
+        updateData.status = "confirmed";
+
+        console.log(`✅ Full payment received for order: ${orderId}`);
       }
 
       // ✅ Update order
-      order.status = "confirmed";
-      order.paymentStatus = "completed";
-      order.isPaid = true;
-      order.paidAt = new Date();
-      order.razorpayPaymentId = payment.id;
-      order.razorpayOrderId = payment.order_id;
-      await order.save();
+      const updatedOrder = await Order.findByIdAndUpdate(orderId, updateData, { new: true });
 
-      console.log(`✅ Webhook: Order ${order._id} marked as paid via Razorpay`);
+      // ✅ Deduct stock (both cases)
+      for (const item of updatedOrder.items) {
+        const product = await Product.findById(item.product);
+        if (product) {
+          if (product.stock < item.quantity) {
+            console.error(`❌ Insufficient stock for ${product.name}`);
+            // Handle stock issue - maybe refund?
+            continue;
+          }
+          product.stock -= item.quantity;
+          await product.save();
+        }
+      }
+
+      // ✅ Push to Shiprocket (both cases)
+      try {
+        const shiprocketRes = await createShiprocketOrder(updatedOrder);
+        if (shiprocketRes?.order_id) {
+          await Order.findByIdAndUpdate(orderId, {
+            shiprocketOrderId: shiprocketRes.order_id,
+            awbCode: shiprocketRes.awb_code,
+            courierName: shiprocketRes.courier_name,
+            trackingUrl: shiprocketRes.tracking_url
+          });
+          console.log("✅ Order pushed to Shiprocket:", shiprocketRes.order_id);
+        }
+      } catch (shiprocketErr) {
+        console.error("❌ Shiprocket error:", shiprocketErr.message);
+      }
+
+      // ✅ Send confirmation email/SMS
+      try {
+        const emailTemplate = generateOrderEmail(updatedOrder);
+        await sendEmail({
+          to: updatedOrder.user.email,
+          subject: `Order Confirmation - ${updatedOrder._id}`,
+          html: emailTemplate
+        });
+
+        // Send SMS
+        const smsMessage = `Your order ${updatedOrder._id} has been confirmed. Thank you for shopping!`;
+        await SendSMS({ phone: updatedOrder.shippingAddress.phone, message: smsMessage });
+      } catch (notificationErr) {
+        console.error("❌ Notification error:", notificationErr);
+      }
+
+    }
+
+    // ✅ PAYMENT FAILED event
+    if (event === "payment.failed") {
+      const payment = body.payload.payment.entity;
+      const orderId = payment.notes?.orderId || payment.receipt?.replace("order_", "");
+
+      if (orderId) {
+        await Order.findByIdAndUpdate(orderId, {
+          paymentStatus: "failed",
+          status: "failed"
+        });
+        console.log(`❌ Payment failed for order: ${orderId}`);
+      }
     }
 
     res.json({ status: "ok" });
   } catch (err) {
-    console.error("❌ Razorpay Webhook Error:", err);
+    console.error("❌ Webhook processing error:", err);
     res.status(500).json({ error: true, message: "Webhook processing failed" });
   }
 };
