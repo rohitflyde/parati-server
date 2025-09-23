@@ -316,6 +316,64 @@ export const verifyCodTokenPayment = async (req, res) => {
 };
 
 
+// ✅ Razorpay Webhook
+export const razorpayWebhook = async (req, res) => {
+  try {
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    const signature = req.headers["x-razorpay-signature"];
+    const body = req.body;
+
+    // 🔑 Verify webhook signature
+    const expectedSignature = crypto
+      .createHmac("sha256", secret)
+      .update(JSON.stringify(body))
+      .digest("hex");
+
+    if (expectedSignature !== signature) {
+      return res.status(400).json({ error: true, message: "Invalid webhook signature" });
+    }
+
+    const event = body.event;
+
+    if (event === "payment.captured") {
+      const payment = body.payload.payment.entity;
+
+      // Razorpay orderId hamesha "receipt" me hota hai jo tumne create time pe set kiya tha
+      const receipt = payment.order_id ? payment.order_id : null;
+
+      if (!receipt) {
+        console.warn("⚠️ Webhook received but no order_id found in payment entity");
+        return res.json({ status: "ok" });
+      }
+
+      // receipt ka format tumne `order_${orderId}` set kiya tha
+      const dbOrderId = receipt.replace("order_", "");
+
+      const order = await Order.findById(dbOrderId);
+      if (!order) {
+        console.warn("⚠️ Order not found for webhook:", dbOrderId);
+        return res.json({ status: "ok" });
+      }
+
+      // ✅ Update order
+      order.status = "confirmed";
+      order.paymentStatus = "completed";
+      order.isPaid = true;
+      order.paidAt = new Date();
+      order.razorpayPaymentId = payment.id;
+      order.razorpayOrderId = payment.order_id;
+      await order.save();
+
+      console.log(`✅ Webhook: Order ${order._id} marked as paid via Razorpay`);
+    }
+
+    res.json({ status: "ok" });
+  } catch (err) {
+    console.error("❌ Razorpay Webhook Error:", err);
+    res.status(500).json({ error: true, message: "Webhook processing failed" });
+  }
+};
+
 
 
 

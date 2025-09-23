@@ -15,7 +15,8 @@ import {
     getShiprocketOrderDetails,
     downloadShippingLabel,
     generateOrderManifest,
-    cancelShiprocketOrder
+    cancelShiprocketOrder,
+    razorpayWebhook
 } from '../controllers/order.controller.js'
 import { isAdmin, protect } from '../middleware/authMiddleware.js'
 
@@ -24,6 +25,7 @@ const router = express.Router();
 // ✅ Razorpay (full payment)
 router.post('/create-razorpay-order', createRazorpayOrder)
 router.post('/verify-payment', verifyRazorpayPayment)
+router.post('/razorpay/webhook', express.raw({ type: "application/json" }),  razorpayWebhook)
 
 // ✅ COD with Token Flow
 router.post('/verify-cod-token', verifyCodTokenPayment)
