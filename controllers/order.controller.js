@@ -314,6 +314,7 @@ export const verifyCodTokenPayment = async (req, res) => {
 
       await SendSMS({ phone: updatedOrder?.shippingAddress?.phone, message: smsMessage });
 
+
       const emailHtml = generateOrderEmail(updatedOrder);
       await sendEmail({
         to: updatedOrder.user.email,
@@ -450,7 +451,11 @@ export const razorpayWebhook = async (req, res) => {
         }
 
         if (updatedOrder.shippingAddress?.phone) {
-          const smsMessage = `Your order ${updatedOrder._id} has been confirmed. Thank you for shopping!`;
+          const smsMessage = `Hi ${updatedOrder?.user?.name || "Customer"}, your order ${updatedOrder._id
+            .toString()
+            .slice(-6)
+            .toUpperCase()} has been placed successfully on ${new Date().toLocaleDateString("en-IN")} via ExPro! We'll notify you once it's shipped. Thanks for shopping with us.`;
+
           await SendSMS({ phone: updatedOrder.shippingAddress.phone, message: smsMessage });
         }
       } catch (notificationErr) {
