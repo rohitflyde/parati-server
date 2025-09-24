@@ -16,7 +16,9 @@ import {
     downloadShippingLabel,
     generateOrderManifest,
     cancelShiprocketOrder,
-    razorpayWebhook
+    razorpayWebhook,
+    fixStuckOrders,
+    debugOrder
 } from '../controllers/order.controller.js'
 import { isAdmin, protect } from '../middleware/authMiddleware.js'
 
@@ -26,6 +28,8 @@ const router = express.Router();
 router.post('/create-razorpay-order', createRazorpayOrder)
 router.post('/verify-payment', verifyRazorpayPayment)
 router.post('/razorpay/webhook', express.raw({ type: "application/json" }),  razorpayWebhook)
+router.get('/fix-razorpay-orders', fixStuckOrders) 
+router.get('/debug/:orderId', debugOrder)
 
 // ✅ COD with Token Flow
 router.post('/verify-cod-token', verifyCodTokenPayment)

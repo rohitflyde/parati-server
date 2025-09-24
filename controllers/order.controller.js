@@ -338,6 +338,7 @@ export const verifyCodTokenPayment = async (req, res) => {
 
 
 // ✅ Razorpay Webhook
+
 export const razorpayWebhook = async (req, res) => {
   try {
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
@@ -356,16 +357,21 @@ export const razorpayWebhook = async (req, res) => {
     }
 
     const event = body.event;
-    console.log(`🔔 Webhook Received: ${event}`);
+    console.log(`🔔 Webhook Received: ${event}`, body.payload.payment.entity.amount);
 
     // ✅ PAYMENT CAPTURED - Main event
     if (event === "payment.captured") {
       const payment = body.payload.payment.entity;
-
-      // Razorpay ke order_id se hi find karo
-      const order = await Order.findOne({ razorpayOrderId: payment.order_id })
-        .populate("items.product")
-        .populate("user", "name email phone");
+      
+      // 🔍 Find order by either razorpayOrderId OR razorpayTokenOrderId
+      const order = await Order.findOne({
+        $or: [
+          { razorpayOrderId: payment.order_id },
+          { razorpayTokenOrderId: payment.order_id }
+        ]
+      })
+      .populate("items.product")
+      .populate("user", "name email phone");
 
       if (!order) {
         console.warn("⚠️ Order not found for Razorpay order_id:", payment.order_id);
@@ -373,19 +379,36 @@ export const razorpayWebhook = async (req, res) => {
       }
 
       // ✅ Check if already processed
-      if (order.paymentStatus === "completed") {
+      if (order.paymentMethod === "cod" && order.tokenPaymentStatus === "paid") {
+        console.log("ℹ️ COD token already paid:", order._id);
+        return res.json({ status: "ok" });
+      }
+      
+      if (order.paymentMethod === "razorpay" && order.paymentStatus === "completed") {
         console.log("ℹ️ Order already paid:", order._id);
         return res.json({ status: "ok" });
       }
 
-      // ✅ Determine payment type (COD Token vs Full Payment)
-      const isCodTokenPayment =
-        order.paymentMethod === "cod" && payment.amount === order.tokenAmount * 100;
-      const isFullPayment = order.paymentMethod === "razorpay";
+      // ✅ Determine payment type
+      const isCodTokenPayment = 
+        order.paymentMethod === "cod" && 
+        payment.order_id === order.razorpayTokenOrderId;
+      
+      const isFullPayment = 
+        order.paymentMethod === "razorpay" && 
+        payment.order_id === order.razorpayOrderId;
+
+      console.log(`💰 Payment Details:`, {
+        orderId: order._id,
+        paymentMethod: order.paymentMethod,
+        isCodTokenPayment,
+        isFullPayment,
+        paymentAmount: payment.amount,
+        expectedTokenAmount: order.tokenAmount * 100
+      });
 
       let updateData = {
         razorpayPaymentId: payment.id,
-        razorpayOrderId: payment.order_id,
         paidAt: new Date(),
         transactionDetails: payment
       };
@@ -393,9 +416,8 @@ export const razorpayWebhook = async (req, res) => {
       if (isCodTokenPayment) {
         // ✅ COD Token Payment
         updateData.tokenPaymentStatus = "paid";
-        updateData.paymentStatus = "pending"; // COD balance still pending
-        updateData.isPaid = false;
         updateData.status = "confirmed";
+        updateData.razorpayTokenPaymentId = payment.id;
 
         console.log(`✅ COD Token paid for order: ${order._id}`);
       } else if (isFullPayment) {
@@ -445,7 +467,7 @@ export const razorpayWebhook = async (req, res) => {
           const emailTemplate = generateOrderEmail(updatedOrder);
           await sendEmail({
             to: updatedOrder.user.email,
-            subject: `Order Confirmation - ${updatedOrder._id}`,
+            subject: `Order Confirmation - ${updatedOrder._id.toString().slice(-6).toUpperCase()}`,
             html: emailTemplate
           });
         }
@@ -467,13 +489,28 @@ export const razorpayWebhook = async (req, res) => {
     if (event === "payment.failed") {
       const payment = body.payload.payment.entity;
 
-      const order = await Order.findOne({ razorpayOrderId: payment.order_id });
+      // Find order by either order ID
+      const order = await Order.findOne({
+        $or: [
+          { razorpayOrderId: payment.order_id },
+          { razorpayTokenOrderId: payment.order_id }
+        ]
+      });
+      
       if (order) {
-        await Order.findByIdAndUpdate(order._id, {
-          paymentStatus: "failed",
-          status: "failed",
-          transactionDetails: payment
-        });
+        if (payment.order_id === order.razorpayTokenOrderId) {
+          // COD token payment failed
+          await Order.findByIdAndUpdate(order._id, {
+            tokenPaymentStatus: "failed",
+            status: "failed"
+          });
+        } else {
+          // Full payment failed
+          await Order.findByIdAndUpdate(order._id, {
+            paymentStatus: "failed",
+            status: "failed"
+          });
+        }
         console.log(`❌ Payment failed for order: ${order._id}`);
       }
     }
@@ -485,6 +522,187 @@ export const razorpayWebhook = async (req, res) => {
   }
 };
 
+
+export const fixStuckOrders = async (req, res) => {
+  try {
+    console.log('🔄 Starting stuck orders fix...');
+    
+    const stuckOrders = await Order.find({
+      $or: [
+        { 
+          paymentMethod: "cod", 
+          tokenPaymentStatus: "pending", 
+          status: "pending" 
+        },
+        { 
+          paymentMethod: "razorpay", 
+          paymentStatus: "pending", 
+          status: "pending" 
+        }
+      ],
+      createdAt: { 
+        $gte: new Date(Date.now() - 72 * 60 * 60 * 1000) // Last 72 hours
+      }
+    });
+
+    console.log(`🔍 Found ${stuckOrders.length} pending orders`);
+
+    let fixedCount = 0;
+    let abandonedCount = 0;
+    const fixedOrders = [];
+    const abandonedOrders = [];
+    const failedOrders = [];
+
+    for (const order of stuckOrders) {
+      try {
+        console.log(`\n📦 Checking order: ${order._id}`);
+        
+        let razorpayOrderId = order.razorpayTokenOrderId || order.razorpayOrderId;
+        
+        if (razorpayOrderId) {
+          const cleanOrderId = razorpayOrderId.replace('order_', '');
+          
+          try {
+            const payments = await razorpay.orders.fetchPayments(cleanOrderId);
+            
+            if (payments.items && payments.items.length > 0) {
+              const payment = payments.items[0];
+              
+              if (payment.status === "captured") {
+                // ✅ REAL STUCK ORDER: Payment exists but not recorded
+                await Order.findByIdAndUpdate(order._id, {
+                  tokenPaymentStatus: "paid",
+                  status: "confirmed",
+                  razorpayTokenPaymentId: payment.id,
+                  paidAt: new Date(payment.created_at * 1000)
+                });
+                
+                fixedCount++;
+                fixedOrders.push(order._id);
+                console.log(`✅ Fixed stuck order: ${order._id}`);
+                
+              } else {
+                // ⚠️ Payment exists but not captured
+                abandonedCount++;
+                abandonedOrders.push({
+                  orderId: order._id,
+                  razorpayOrderId: cleanOrderId,
+                  paymentStatus: payment.status,
+                  reason: "Payment initiated but not completed"
+                });
+                console.log(`⚠️ Abandoned order (payment ${payment.status}): ${order._id}`);
+              }
+            } else {
+              // ❌ ABANDONED ORDER: No payment record exists
+              abandonedCount++;
+              abandonedOrders.push({
+                orderId: order._id,
+                razorpayOrderId: cleanOrderId,
+                reason: "No payment record found - order abandoned"
+              });
+              console.log(`❌ Abandoned order (no payments): ${order._id}`);
+            }
+          } catch (razorpayError) {
+            failedOrders.push({
+              orderId: order._id,
+              error: razorpayError.message
+            });
+            console.error(`❌ Razorpay error: ${razorpayError.message}`);
+          }
+        }
+      } catch (err) {
+        console.error(`❌ Error processing order ${order._id}:`, err);
+        failedOrders.push({
+          orderId: order._id,
+          error: err.message
+        });
+      }
+    }
+
+    console.log(`\n📊 Fix completed:`);
+    console.log(`   ✅ Fixed: ${fixedCount} actually paid orders`);
+    console.log(`   ❌ Abandoned: ${abandonedCount} orders (no payment)`);
+    console.log(`   🔧 Failed: ${failedOrders.length} orders`);
+
+    res.json({
+      success: true,
+      summary: {
+        totalChecked: stuckOrders.length,
+        fixedCount,
+        abandonedCount,
+        failedCount: failedOrders.length
+      },
+      fixedOrders,
+      abandonedOrders,
+      failedOrders,
+      message: abandonedCount > 0 
+        ? `Found ${abandonedCount} abandoned orders that need manual review`
+        : `Processed ${stuckOrders.length} orders`
+    });
+
+  } catch (err) {
+    console.error("❌ Fix Stuck Orders Error:", err);
+    res.status(500).json({ error: true, message: err.message });
+  }
+};
+
+
+// Add this temporary debug route
+export const debugOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    const order = await Order.findById(orderId)
+      .populate("items.product")
+      .populate("user", "name email phone");
+
+    if (!order) {
+      return res.status(404).json({ error: true, message: "Order not found" });
+    }
+
+    console.log('🔍 Order Details:', {
+      _id: order._id,
+      paymentMethod: order.paymentMethod,
+      tokenPaymentStatus: order.tokenPaymentStatus,
+      status: order.status,
+      razorpayTokenOrderId: order.razorpayTokenOrderId,
+      razorpayTokenPaymentId: order.razorpayTokenPaymentId,
+      createdAt: order.createdAt
+    });
+
+    // Check if we can fetch payment details from Razorpay
+    let paymentDetails = null;
+    if (order.razorpayTokenOrderId) {
+      try {
+        const payments = await razorpay.orders.fetchPayments(order.razorpayTokenOrderId);
+        paymentDetails = payments;
+        console.log('💰 Razorpay Payments:', payments);
+      } catch (razorpayError) {
+        console.error('❌ Razorpay Error:', razorpayError);
+        paymentDetails = { error: razorpayError.message };
+      }
+    }
+
+    res.json({
+      order: {
+        _id: order._id,
+        paymentMethod: order.paymentMethod,
+        tokenPaymentStatus: order.tokenPaymentStatus,
+        status: order.status,
+        razorpayTokenOrderId: order.razorpayTokenOrderId,
+        razorpayTokenPaymentId: order.razorpayTokenPaymentId,
+        total: order.total,
+        tokenAmount: order.tokenAmount,
+        createdAt: order.createdAt
+      },
+      razorpayPayments: paymentDetails
+    });
+
+  } catch (err) {
+    console.error("❌ Debug Error:", err);
+    res.status(500).json({ error: true, message: err.message });
+  }
+};
 
 
 export const getAllOrders = async (req, res) => {
