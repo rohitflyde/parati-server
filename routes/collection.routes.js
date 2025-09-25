@@ -302,7 +302,6 @@ router.get('/type/festivals', async (req, res) => {
 // ADMIN ROUTES (Protected)
 
 // Create collection
-// Update the create collection route
 router.post('/', protect, async (req, res) => {
     try {
         const { productIds, ...collectionData } = req.body;
@@ -331,17 +330,7 @@ router.post('/', protect, async (req, res) => {
             );
         }
 
-        // Populate and return the collection
-        await collection.populate([
-            'featuredImage bannerImage thumbnailImage',
-            {
-                path: 'products',
-                select: '_id name sku featuredImage basePrice salePrice',
-                populate: { path: 'featuredImage' },
-                options: { limit: 10 }
-            }
-        ]);
-
+        // PROPERLY POPULATE THE COLLECTION WITH PRODUCTS
         const populatedCollection = await Collection.findById(collection._id)
             .populate('featuredImage bannerImage thumbnailImage')
             .populate({
@@ -351,10 +340,20 @@ router.post('/', protect, async (req, res) => {
                 options: { limit: 10 }
             });
 
+        // Get product count
+        const productCount = await Product.countDocuments({
+            collections: collection._id,
+            status: true
+        });
+
+        // Convert to object and add productCount
+        const collectionResponse = populatedCollection.toObject();
+        collectionResponse.productCount = productCount;
+
         res.status(201).json({
             success: true,
             message: 'Collection created successfully',
-            collection: populatedCollection
+            collection: collectionResponse
         });
 
     } catch (error) {
@@ -376,6 +375,7 @@ router.post('/', protect, async (req, res) => {
 
 
 // Update collection
+// Update collection - FIXED VERSION
 router.put('/:id', protect, async (req, res) => {
     try {
         const { productIds, ...updateData } = req.body;
@@ -413,7 +413,7 @@ router.put('/:id', protect, async (req, res) => {
             }
         }
 
-        // Populate and return the updated collection
+        // PROPERLY POPULATE THE UPDATED COLLECTION
         const populatedCollection = await Collection.findById(collection._id)
             .populate('featuredImage bannerImage thumbnailImage')
             .populate({
@@ -423,10 +423,19 @@ router.put('/:id', protect, async (req, res) => {
                 options: { limit: 10 }
             });
 
+        // Get product count
+        const productCount = await Product.countDocuments({
+            collections: collection._id,
+            status: true
+        });
+
+        const collectionResponse = populatedCollection.toObject();
+        collectionResponse.productCount = productCount;
+
         res.json({
             success: true,
             message: 'Collection updated successfully',
-            collection: populatedCollection
+            collection: collectionResponse
         });
 
     } catch (error) {
