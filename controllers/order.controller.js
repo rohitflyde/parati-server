@@ -31,6 +31,57 @@ function formatDate(date) {
 
 
 
+const validateStockAvailability = async (items) => {
+  const stockErrors = [];
+  const productUpdates = [];
+
+  for (const item of items) {
+    const product = await Product.findById(item.product);
+    if (!product) {
+      stockErrors.push(`Product not found: ${item.product}`);
+      continue;
+    }
+
+    // Check if product has variants
+    if (item.variant && item.variant !== "default") {
+      const variant = product.variants?.find(v => v._id.toString() === item.variant);
+      if (!variant) {
+        stockErrors.push(`Variant not found for product: ${product.name}`);
+        continue;
+      }
+      
+      if (variant.inventory < item.quantity) {
+        stockErrors.push(
+          `Not enough stock for ${product.name} (${variant.sku || 'variant'}). Only ${variant.inventory} available, but ${item.quantity} requested`
+        );
+      } else {
+        productUpdates.push({
+          productId: product._id,
+          variantId: item.variant,
+          quantity: item.quantity,
+          currentStock: variant.inventory
+        });
+      }
+    } else {
+      // Main product stock check
+      if (product.stock < item.quantity) {
+        stockErrors.push(
+          `Not enough stock for ${product.name}. Only ${product.stock} available, but ${item.quantity} requested`
+        );
+      } else {
+        productUpdates.push({
+          productId: product._id,
+          quantity: item.quantity,
+          currentStock: product.stock
+        });
+      }
+    }
+  }
+
+  return { stockErrors, productUpdates };
+};
+
+
 // Create Razorpay Order
 export const createRazorpayOrder = async (req, res) => {
   try {
@@ -64,13 +115,11 @@ export const verifyRazorpayPayment = async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
 
-    // Create signature
     const generated_signature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest("hex");
 
-    // Verify signature
     if (generated_signature !== razorpay_signature) {
       return res.status(400).json({
         error: true,
@@ -78,7 +127,32 @@ export const verifyRazorpayPayment = async (req, res) => {
       });
     }
 
-    // Update order in database
+    // Get order before updating
+    const order = await Order.findById(orderId).populate("items.product");
+    if (!order) {
+      return res.status(404).json({ error: true, message: "Order not found" });
+    }
+
+    // ✅ Final stock validation before payment confirmation
+    const { stockErrors } = await validateStockAvailability(order.items);
+    if (stockErrors.length > 0) {
+      // Refund the payment if stock is not available
+      try {
+        await razorpay.payments.refund(razorpay_payment_id, {
+          amount: Math.round(order.total * 100)
+        });
+      } catch (refundError) {
+        console.error("❌ Refund failed:", refundError);
+      }
+
+      return res.status(400).json({
+        error: true,
+        message: "Stock unavailable. Payment refunded.",
+        details: stockErrors
+      });
+    }
+
+    // Update order status
     const updatedOrder = await Order.findByIdAndUpdate(
       orderId,
       {
@@ -91,29 +165,28 @@ export const verifyRazorpayPayment = async (req, res) => {
         paidAt: new Date()
       },
       { new: true }
-    )
-      .populate("items.product")
-      .populate("user", "name email phone");
+    ).populate("items.product").populate("user", "name email phone");
 
-    // ✅ Deduct stock
+    // ✅ Deduct stock after successful payment
     for (const item of updatedOrder.items) {
       const product = await Product.findById(item.product);
       if (!product) continue;
-      if (product.stock < item.quantity) {
-        return res.status(400).json({
-          error: true,
-          message: `Not enough stock for ${product.name}. Only ${product.stock} left`
-        });
+
+      if (item.variant && item.variant !== "default") {
+        const variant = product.variants.id(item.variant);
+        if (variant) {
+          variant.inventory -= item.quantity;
+          await product.save();
+        }
+      } else {
+        product.stock -= item.quantity;
+        await product.save();
       }
-      product.stock -= item.quantity;
-      await product.save();
     }
 
-    // ✅ Push to Shiprocket after payment success
+    // ✅ Push to Shiprocket
     try {
-      const populatedOrder = await Order.findById(updatedOrder._id).populate("items.product");
-      const shiprocketRes = await createShiprocketOrder(populatedOrder);
-
+      const shiprocketRes = await createShiprocketOrder(updatedOrder);
       if (shiprocketRes && shiprocketRes.order_id) {
         await Order.findByIdAndUpdate(updatedOrder._id, {
           shiprocketOrderId: shiprocketRes.order_id,
@@ -121,7 +194,6 @@ export const verifyRazorpayPayment = async (req, res) => {
           courierName: shiprocketRes.courier_name || null,
           trackingUrl: shiprocketRes.tracking_url || null
         });
-
         console.log("✅ Prepaid order pushed to Shiprocket:", shiprocketRes.order_id);
       }
     } catch (err) {
@@ -156,6 +228,17 @@ export const placeOrder = async (req, res) => {
 
     if (!items || !items.length) {
       return res.status(400).json({ error: true, message: "Cart is empty" });
+    }
+
+    // ✅ Stock validation before creating order
+    const { stockErrors, productUpdates } = await validateStockAvailability(items);
+    
+    if (stockErrors.length > 0) {
+      return res.status(400).json({
+        error: true,
+        message: "Stock validation failed",
+        details: stockErrors
+      });
     }
 
     const user = await User.findById(userId);
@@ -193,7 +276,7 @@ export const placeOrder = async (req, res) => {
       shippingAddress: shippingAddressData,
       paymentMethod,
       total,
-      status: "pending", // initially pending
+      status: "pending",
       paymentStatus: "pending",
       isPaid: false
     };
@@ -204,9 +287,8 @@ export const placeOrder = async (req, res) => {
       orderData.remainingCOD = total - 1000;
       orderData.tokenPaymentStatus = "pending";
 
-      // Razorpay order for token payment (1000 INR)
       const options = {
-        amount: 1000 * 100, // in paise
+        amount: 1000 * 100,
         currency: "INR",
         receipt: `cod_token_${Date.now()}`,
         payment_capture: 1
@@ -216,21 +298,13 @@ export const placeOrder = async (req, res) => {
       orderData.razorpayTokenOrderId = razorpayOrder.id;
     }
 
-    // ✅ Razorpay (full payment) flow
-    if (paymentMethod === "razorpay") {
-      orderData.status = "processing";
-      orderData.paymentStatus = "pending";
-      orderData.isPaid = false;
-    }
-
     const order = await Order.create(orderData);
 
     return res.status(201).json({
       success: true,
-      message:
-        paymentMethod === "cod"
-          ? "COD order created. Token payment required."
-          : "Order created. Proceed to payment.",
+      message: paymentMethod === "cod" 
+        ? "COD order created. Token payment required." 
+        : "Order created. Proceed to payment.",
       order,
       paymentRequired: true,
       paymentType: paymentMethod === "cod" ? "cod_token" : "razorpay"
@@ -260,6 +334,22 @@ export const verifyCodTokenPayment = async (req, res) => {
       return res.status(400).json({ error: true, message: "Token payment verification failed" });
     }
 
+    // Get order before updating
+    const order = await Order.findById(orderId).populate("items.product");
+    if (!order) {
+      return res.status(404).json({ error: true, message: "Order not found" });
+    }
+
+    // ✅ Final stock validation
+    const { stockErrors } = await validateStockAvailability(order.items);
+    if (stockErrors.length > 0) {
+      return res.status(400).json({
+        error: true,
+        message: "Stock unavailable",
+        details: stockErrors
+      });
+    }
+
     const updatedOrder = await Order.findByIdAndUpdate(
       orderId,
       {
@@ -275,21 +365,22 @@ export const verifyCodTokenPayment = async (req, res) => {
     for (const item of updatedOrder.items) {
       const product = await Product.findById(item.product);
       if (!product) continue;
-      if (product.stock < item.quantity) {
-        return res.status(400).json({
-          error: true,
-          message: `Not enough stock for ${product.name}. Only ${product.stock} left`
-        });
+
+      if (item.variant && item.variant !== "default") {
+        const variant = product.variants.id(item.variant);
+        if (variant) {
+          variant.inventory -= item.quantity;
+          await product.save();
+        }
+      } else {
+        product.stock -= item.quantity;
+        await product.save();
       }
-      product.stock -= item.quantity;
-      await product.save();
     }
 
-    // ✅ Push COD order to Shiprocket after token paid
+    // ✅ Push to Shiprocket
     try {
-      const populatedOrder = await Order.findById(updatedOrder._id).populate("items.product");
-      const shiprocketRes = await createShiprocketOrder(populatedOrder);
-
+      const shiprocketRes = await createShiprocketOrder(updatedOrder);
       if (shiprocketRes && shiprocketRes.order_id) {
         await Order.findByIdAndUpdate(updatedOrder._id, {
           shiprocketOrderId: shiprocketRes.order_id,
@@ -297,32 +388,10 @@ export const verifyCodTokenPayment = async (req, res) => {
           courierName: shiprocketRes.courier_name || null,
           trackingUrl: shiprocketRes.tracking_url || null
         });
-
         console.log("✅ COD order pushed to Shiprocket:", shiprocketRes.order_id);
       }
     } catch (err) {
       console.error("❌ Failed to push COD order to Shiprocket:", err.message);
-    }
-
-
-    // Send notifications
-    try {
-      const smsMessage = `Hi ${updatedOrder?.user?.name || "Customer"}, your order ${updatedOrder._id
-        .toString()
-        .slice(-6)
-        .toUpperCase()} has been placed successfully on ${new Date().toLocaleDateString("en-IN")} via ExPro! We'll notify you once it's shipped. Thanks for shopping with us.`;
-
-      await SendSMS({ phone: updatedOrder?.shippingAddress?.phone, message: smsMessage });
-
-
-      const emailHtml = generateOrderEmail(updatedOrder);
-      await sendEmail({
-        to: updatedOrder.user.email,
-        subject: `Order Confirmation #${updatedOrder._id.toString().slice(-6).toUpperCase()}`,
-        html: emailHtml,
-      });
-    } catch (notifyErr) {
-      console.error("⚠️ Failed to send notifications:", notifyErr.message);
     }
 
     res.status(200).json({

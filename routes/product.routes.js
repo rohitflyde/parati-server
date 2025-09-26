@@ -8,6 +8,7 @@ import {
   getBulkProductsByIds,
   getProductsByCategorySlug,
   searchProducts,
+  getProductById,
   addAttributesToProduct,
   updateProductSpecifications,
 } from "../controllers/product.controller.js";
@@ -18,6 +19,7 @@ import cloudinarUpload from "../middleware/uploadMiddleware.js";
 const router = express.Router();
 
 router.get("/", getAllProducts);
+router.get('/:id', getProductById);
 router.get("/search", searchProducts);
 
 router.get("/slug/:slug", getProductBySlug);
