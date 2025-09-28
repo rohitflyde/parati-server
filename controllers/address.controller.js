@@ -40,39 +40,26 @@ export const updateAddress = async (req, res) => {
     const { id } = req.params;
     const user = await User.findById(req.user.id);
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Try finding the address subdocument
-    let address = user.addresses.id(id);
-
-    // Fallback if .id() doesn't work
-    if (!address) {
-      address = user.addresses.find((addr) => addr._id.toString() === id);
-    }
-
-    if (!address) {
-      return res.status(404).json({ message: "Address not found" });
-    }
+    let address = user.addresses.id(id) || user.addresses.find(a => a._id.toString() === id);
+    if (!address) return res.status(404).json({ message: "Address not found" });
 
     // Update only provided fields
-    Object.assign(address, req.body);
+    for (const key in req.body) {
+      if (req.body[key] !== undefined) {
+        address[key] = req.body[key];
+      }
+    }
 
     await user.save();
-
-    return res.json({
-      message: "Address updated successfully",
-      addresses: user.addresses,
-    });
+    res.json({ message: "Address updated successfully", addresses: user.addresses });
   } catch (error) {
-    console.error("Update address error:", error); // 🔍 log exact error
-    return res.status(500).json({
-      message: "Failed to update address",
-      error: error.message,
-    });
+    console.error("Update address error:", error);
+    res.status(500).json({ message: "Failed to update address", error: error.message });
   }
 };
+
 
 
 
