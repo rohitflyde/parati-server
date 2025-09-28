@@ -36,20 +36,44 @@ export const addAddress = async (req, res) => {
 
 
 export const updateAddress = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const user = await User.findById(req.user.id);
+  try {
+    const { id } = req.params;
+    const user = await User.findById(req.user.id);
 
-        const address = user.addresses.id(id);
-        if (!address) return res.status(404).json({ message: 'Address not found' });
-
-        Object.assign(address, req.body); // update fields
-        await user.save();
-        res.json(user.addresses);
-    } catch (error) {
-        res.status(500).json({ message: 'Failed to update address' });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
+
+    // Try finding the address subdocument
+    let address = user.addresses.id(id);
+
+    // Fallback if .id() doesn't work
+    if (!address) {
+      address = user.addresses.find((addr) => addr._id.toString() === id);
+    }
+
+    if (!address) {
+      return res.status(404).json({ message: "Address not found" });
+    }
+
+    // Update only provided fields
+    Object.assign(address, req.body);
+
+    await user.save();
+
+    return res.json({
+      message: "Address updated successfully",
+      addresses: user.addresses,
+    });
+  } catch (error) {
+    console.error("Update address error:", error); // 🔍 log exact error
+    return res.status(500).json({
+      message: "Failed to update address",
+      error: error.message,
+    });
+  }
 };
+
 
 
 export const deleteAddress = async (req, res) => {
