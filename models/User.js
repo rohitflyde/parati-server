@@ -9,7 +9,7 @@ const addressSchema = new mongoose.Schema(
     state: { type: String, required: true },
     pincode: { type: String, required: true },
     country: { type: String, default: 'India' },
-    phone: { type: String, required: true },
+    phone: { type: String, required: false },
     label: { type: String, enum: ['Home', 'Office', 'Other'], default: 'home' },
     isDefault: { type: Boolean, default: false },
   },
