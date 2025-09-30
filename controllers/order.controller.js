@@ -550,6 +550,7 @@ export const placeOrder = async (req, res) => {
         ? "COD order created. Token payment required."
         : "Order created. Proceed to payment.",
       order,
+      razorpayOrder,
       paymentRequired: true,
       paymentType: paymentMethod === "cod" ? "cod_token" : "razorpay"
     });
@@ -575,6 +576,7 @@ export const placeOrder = async (req, res) => {
     });
   }
 };
+
 
 
 
@@ -1154,6 +1156,171 @@ export const razorpayWebhook = async (req, res) => {
     res.status(500).json({ error: true, message: "Webhook processing failed" });
   }
 };
+
+
+export const syncSingleOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    let order = await Order.findById(orderId)
+      .populate("items.product")
+      .populate("user", "name email phone");
+    if (!order) {
+      return res.status(404).json({ error: true, message: "Order not found" });
+    }
+    // If already paid/confirmed, skip reprocessing
+    if (order.isPaid && order.status === "confirmed") {
+      return res.status(200).json({
+        success: true,
+        message: "Order already paid and confirmed",
+        order,
+      });
+    }
+    let razorpayOrderId = order.razorpayOrderId || order.razorpayTokenOrderId;
+    // :arrows_anticlockwise: Retry path: search Razorpay if no ID saved
+    if (!razorpayOrderId) {
+      console.log(":warning: No Razorpay orderId in DB, searching Razorpay by description...");
+      const from = Math.floor((Date.now() - 14 * 24 * 60 * 60 * 1000) / 1000); // last 14 days
+      const to = Math.floor(Date.now() / 1000);
+      const razorOrders = await razorpay.orders.all({ from, to });
+      const matched = razorOrders.items.find(r =>
+        r.notes?.mongoOrderId === order._id.toString() ||
+        r.description?.includes(order._id.toString())
+      );
+      if (matched) {
+        razorpayOrderId = matched.id;
+        order.razorpayOrderId = matched.id;
+        await order.save();
+        await createLog({
+          user: order.user?._id || null,
+          source: "SYNC",
+          action: "RAZORPAY_ORDER_RECOVERED",
+          entity: "Order",
+          entityId: order._id,
+          status: "SUCCESS",
+          message: "Recovered missing Razorpay order ID",
+          details: matched,
+          req,
+        });
+      } else {
+        return res.status(400).json({
+          error: true,
+          message: "No matching Razorpay order found for this order",
+        });
+      }
+    }
+    // Fetch payments from Razorpay
+    const cleanOrderId = razorpayOrderId
+    const payments = await razorpay.orders.fetchPayments(cleanOrderId);
+    if (!payments.items || payments.items.length === 0) {
+      return res.status(400).json({ error: true, message: "No payments found in Razorpay" });
+    }
+    const payment = payments.items[0];
+    if (payment.status !== "captured") {
+      return res.status(400).json({
+        error: true,
+        message: `Payment not captured yet (status: ${payment.status})`,
+      });
+    }
+    // :white_tick: Final stock validation before confirming
+    const { stockErrors } = await validateStockAvailability(order.items);
+    if (stockErrors.length > 0) {
+      return res.status(400).json({
+        error: true,
+        message: "Stock unavailable for one or more items",
+        details: stockErrors,
+      });
+    }
+    // Update order as paid
+    order.status = "confirmed";
+    order.paymentStatus = "completed";
+    order.isPaid = true;
+    order.razorpayPaymentId = payment.id;
+    order.paidAt = new Date(payment.created_at * 1000);
+    await order.save();
+    // Deduct stock
+    for (const item of order.items) {
+      const product = await Product.findById(item.product);
+      if (!product) continue;
+      if (item.variant && item.variant !== "default") {
+        const variant = product.variants.id(item.variant);
+        if (variant) {
+          variant.inventory -= item.quantity;
+          await product.save();
+        }
+      } else {
+        product.stock -= item.quantity;
+        await product.save();
+      }
+    }
+    await createLog({
+      user: order.user?._id || null,
+      source: "SYNC",
+      action: "ORDER_CONFIRMED",
+      entity: "Order",
+      entityId: order._id,
+      status: "SUCCESS",
+      message: "Order confirmed and stock deducted via sync",
+      details: { payment },
+      req,
+    });
+    // Push to Shiprocket
+    try {
+      const shipRes = await createShiprocketOrder(order);
+      if (shipRes?.order_id) {
+        await Order.findByIdAndUpdate(order._id, {
+          shiprocketOrderId: shipRes.order_id,
+          awbCode: shipRes.awb_code || null,
+          courierName: shipRes.courier_name || null,
+          trackingUrl: shipRes.tracking_url || null,
+        });
+        await createLog({
+          user: order.user?._id || null,
+          source: "INTEGRATION",
+          action: "SHIPROCKET_SYNC",
+          entity: "Order",
+          entityId: order._id,
+          status: "SUCCESS",
+          message: "Order synced to Shiprocket from single sync",
+          details: shipRes,
+        });
+      }
+    } catch (err) {
+      console.error(":x: Shiprocket sync failed:", err.message);
+      await createLog({
+        user: order.user?._id || null,
+        source: "INTEGRATION",
+        action: "SHIPROCKET_SYNC",
+        entity: "Order",
+        entityId: order._id,
+        status: "FAILURE",
+        message: "Failed to sync order to Shiprocket",
+        details: { error: err.message },
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: "Order synced successfully",
+      order,
+      payment,
+    });
+  } catch (err) {
+    console.error(":x: Sync Single Order Error:", err);
+    await createLog({
+      source: "SYNC",
+      action: "SYNC_SINGLE_ORDER",
+      entity: "Order",
+      entityId: req.params.orderId || null,
+      status: "FAILURE",
+      message: "Failed to sync single order",
+      details: { error: err.message },
+      req,
+    });
+    res.status(500).json({ error: true, message: err.message });
+  }
+};
+
+
+
 
 export const fixStuckOrders = async (req, res) => {
   try {

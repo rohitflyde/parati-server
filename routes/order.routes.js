@@ -18,17 +18,21 @@ import {
     cancelShiprocketOrder,
     razorpayWebhook,
     fixStuckOrders,
-    debugOrder
+    debugOrder,
+    syncSingleOrder
 } from '../controllers/order.controller.js'
 import { isAdmin, protect } from '../middleware/authMiddleware.js'
+import { checkAndUpdatePendingOrders, checkAndUpdateSingleOrder } from "../utils/checkPendingOrders.js";
 
 const router = express.Router();
 
 // ✅ Razorpay (full payment)
+router.get("/actions/sync-single/:orderId", syncSingleOrder);
+router.get('/sync-razorpay-pending', protect, checkAndUpdatePendingOrders)
 router.post('/create-razorpay-order', createRazorpayOrder)
 router.post('/verify-payment', verifyRazorpayPayment)
-router.post('/razorpay/webhook', express.raw({ type: "application/json" }),  razorpayWebhook)
-router.get('/fix-razorpay-orders', fixStuckOrders) 
+router.post('/razorpay/webhook', express.raw({ type: "application/json" }), razorpayWebhook)
+router.get('/fix-razorpay-orders', fixStuckOrders)
 router.get('/debug/:orderId', debugOrder)
 
 // ✅ COD with Token Flow
@@ -52,7 +56,6 @@ router.get('/:id', protect, getOrderById)
 router.get('/', getAllOrders)
 router.get('/customer/:userId', protect, getOrdersByUser)
 router.get('/me/orders', protect, getAllOrdersForSingleUser)
-
 // ✅ Update + Delete
 router.patch('/update-order/:id', protect, updateOrderStatus)
 router.delete('/:id', protect, isAdmin, deleteOrderById)
