@@ -357,8 +357,6 @@ export const placeOrder = async (req, res) => {
     const userId = req.user?._id;
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-
-      // 🔹 Log invalid user
       await createLog({
         user: null,
         source: "API",
@@ -369,13 +367,10 @@ export const placeOrder = async (req, res) => {
         details: { userId },
         req,
       });
-
       return res.status(400).json({ error: true, message: "Invalid user ID" });
     }
 
     if (!items || !items.length) {
-
-      // 🔹 Log empty cart
       await createLog({
         user: userId,
         source: "API",
@@ -386,16 +381,12 @@ export const placeOrder = async (req, res) => {
         details: {},
         req,
       });
-
       return res.status(400).json({ error: true, message: "Cart is empty" });
     }
 
-    // ✅ Stock validation before creating order
-    const { stockErrors, productUpdates } = await validateStockAvailability(items);
-
+    // ✅ Stock validation
+    const { stockErrors } = await validateStockAvailability(items);
     if (stockErrors.length > 0) {
-
-      // 🔹 Log stock error
       await createLog({
         user: userId,
         source: "API",
@@ -406,22 +397,20 @@ export const placeOrder = async (req, res) => {
         details: { stockErrors },
         req,
       });
-
       return res.status(400).json({
         error: true,
         message: "Stock validation failed",
-        details: stockErrors
+        details: stockErrors,
       });
     }
 
     const user = await User.findById(userId);
 
+    // ✅ Resolve shipping address
     let shippingAddressData;
     if (mongoose.Types.ObjectId.isValid(shippingAddress)) {
       const userAddress = user.addresses.id(shippingAddress);
       if (!userAddress) {
-
-        // 🔹 Log address not found
         await createLog({
           user: userId,
           source: "API",
@@ -432,104 +421,64 @@ export const placeOrder = async (req, res) => {
           details: { shippingAddress },
           req,
         });
-
         return res.status(400).json({ error: true, message: "Address not found" });
       }
-
-      shippingAddressData = {
-        line1: userAddress.line1,
-        line2: userAddress.line2,
-        city: userAddress.city,
-        state: userAddress.state,
-        pincode: userAddress.pincode,
-        country: userAddress.country,
-        phone: userAddress.phone,
-        name: user.name,
-        email: user.email
-      };
-
-      // 🔹 Log using saved address
-      await createLog({
-        user: userId,
-        source: "API",
-        action: "PLACE_ORDER",
-        entity: "Order",
-        status: "INFO",
-        message: "Using saved address for order",
-        details: { addressId: shippingAddress },
-        req,
-      });
-
+      shippingAddressData = { ...userAddress.toObject(), name: user.name, email: user.email };
     } else {
       shippingAddressData = shippingAddress;
-
-      // 🔹 Log using custom address
-      await createLog({
-        user: userId,
-        source: "API",
-        action: "PLACE_ORDER",
-        entity: "Order",
-        status: "INFO",
-        message: "Using custom shipping address for order",
-        details: { shippingAddress },
-        req,
-      });
-
     }
 
+    // ✅ Base order data
     const orderData = {
       user: userId,
       items: items.map(item => ({
         product: item.product,
         quantity: item.quantity,
         price: item.price,
-        variant: item.variant
+        variant: item.variant,
       })),
       shippingAddress: shippingAddressData,
       paymentMethod,
       total,
       status: "pending",
       paymentStatus: "pending",
-      isPaid: false
+      isPaid: false,
     };
 
-    // ✅ COD Flow with Token
-    let razorpayOrder = null; // declare outside
+    let razorpayOrder = null;
 
-// ✅ COD Flow with Token
-if (paymentMethod === "cod") {
-  orderData.tokenAmount = 1000;
-  orderData.remainingCOD = total - 1000;
-  orderData.tokenPaymentStatus = "pending";
+    // ✅ COD with Token
+    if (paymentMethod === "cod") {
+      orderData.tokenAmount = 1000;
+      orderData.remainingCOD = total - 1000;
+      orderData.tokenPaymentStatus = "pending";
 
-  const options = {
-    amount: 1000 * 100,
-    currency: "INR",
-    receipt: `order_${Date.now()}`,
-    payment_capture: 1
-  };
+      const options = {
+        amount: orderData.tokenAmount * 100,
+        currency: "INR",
+        receipt: `cod_token_${Date.now()}`,
+        payment_capture: 1,
+      };
 
-  razorpayOrder = await razorpay.orders.create(options);
-  orderData.razorpayTokenOrderId = razorpayOrder.id;
+      razorpayOrder = await razorpay.orders.create(options);
+      orderData.razorpayTokenOrderId = razorpayOrder.id;
+    }
 
-  // 🔹 Log COD token order creation
-  await createLog({
-    user: userId,
-    source: "API",
-    action: "PLACE_ORDER",
-    entity: "Order",
-    status: "INFO",
-    message: "COD token Razorpay order created",
-    details: { razorpayOrder, tokenAmount: orderData.tokenAmount },
-    req,
-  });
-}
+    // ✅ Razorpay Full Prepaid
+    if (paymentMethod === "razorpay") {
+      const options = {
+        amount: total * 100,
+        currency: "INR",
+        receipt: `prepaid_${Date.now()}`,
+        payment_capture: 1,
+      };
 
+      razorpayOrder = await razorpay.orders.create(options);
+      orderData.razorpayOrderId = razorpayOrder.id;
+    }
 
     const order = await Order.create(orderData);
 
-
-    // 🔹 Log final order creation
     await createLog({
       user: userId,
       source: "API",
@@ -541,27 +490,24 @@ if (paymentMethod === "cod") {
       details: {
         paymentMethod,
         total,
-        paymentType: paymentMethod === "cod" ? "cod_token" : "razorpay"
+        razorpayOrderId: razorpayOrder?.id || null,
       },
       req,
     });
 
-
     return res.status(201).json({
-  success: true,
-  message: paymentMethod === "cod"
-    ? "COD order created. Token payment required."
-    : "Order created. Proceed to payment.",
-  order,
-  razorpayOrder,  // will be `null` if not COD
-  paymentRequired: true,
-  paymentType: paymentMethod === "cod" ? "cod_token" : "razorpay"
-});
-
+      success: true,
+      message:
+        paymentMethod === "cod"
+          ? "COD order created. Token payment required."
+          : "Prepaid order created. Proceed to payment.",
+      order,
+      razorpayOrder, // contains Razorpay order details for frontend checkout
+      paymentRequired: true,
+      paymentType: paymentMethod === "cod" ? "cod_token" : "razorpay",
+    });
   } catch (err) {
     console.error("❌ Place Order Error:", err);
-
-    // 🔹 Log fatal error
     await createLog({
       user: req.user?._id || null,
       source: "API",
@@ -572,14 +518,10 @@ if (paymentMethod === "cod") {
       details: { error: err.message },
       req,
     });
-
-
-    return res.status(500).json({
-      error: true,
-      message: err.message || "Failed to place order"
-    });
+    return res.status(500).json({ error: true, message: err.message || "Failed to place order" });
   }
 };
+
 
 
 
