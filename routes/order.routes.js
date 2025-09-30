@@ -19,7 +19,9 @@ import {
     razorpayWebhook,
     fixStuckOrders,
     debugOrder,
-    syncSingleOrder
+    syncSingleOrder,
+    auditRazorpayOrders,
+    auditShiprocketOrders
 } from '../controllers/order.controller.js'
 import { isAdmin, protect } from '../middleware/authMiddleware.js'
 import { checkAndUpdatePendingOrders, checkAndUpdateSingleOrder } from "../utils/checkPendingOrders.js";
@@ -35,6 +37,10 @@ router.post('/razorpay/webhook', express.raw({ type: "application/json" }), razo
 router.get('/fix-razorpay-orders', fixStuckOrders)
 router.get('/debug/:orderId', debugOrder)
 
+router.get("/audit/razorpay", auditRazorpayOrders);
+
+
+
 // ✅ COD with Token Flow
 router.post('/verify-cod-token', verifyCodTokenPayment)
 
@@ -43,6 +49,7 @@ router.post('/place', protect, placeOrder);
 
 
 // Shiprocket
+router.get("/audit/shiprocket", auditShiprocketOrders);
 router.get('/:id/shiprocket/tracking', getShiprocketTracking);
 router.get('/:id/shiprocket/invoice', downloadInvoice);
 router.get('/:id/shiprocket/details', getShiprocketOrderDetails);

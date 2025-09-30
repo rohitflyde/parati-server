@@ -313,3 +313,27 @@ export async function cancelShiprocketOrder(shiprocketOrderId) {
         throw error;
     }
 }
+
+
+export async function getRecentShiprocketOrders({ from, to, page = 1, perPage = 50 } = {}) {
+    try {
+        const token = await getShiprocketToken();
+        const params = {
+            per_page: perPage,
+            page,
+        };
+        if (from) params.from_date = from; // YYYY-MM-DD
+        if (to) params.to_date = to;       // YYYY-MM-DD
+        const response = await axios.get(
+            "https://apiv2.shiprocket.in/v1/external/orders",
+            {
+                params,
+                headers: { Authorization: `Bearer ${token}` }
+            }
+        );
+        return response.data;
+    } catch (error) {
+        console.error(":x: Failed to fetch recent Shiprocket orders:", error.response?.data || error.message);
+        throw error;
+    }
+}

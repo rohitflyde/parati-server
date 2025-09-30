@@ -16,6 +16,7 @@ import {
   trackByAWB,
   getOrderDetails,
   generateManifest,
+  getRecentShiprocketOrders,
   cancelShiprocketOrder as cancelShiprocketOrderControllers,
 
 } from "../utils/shiprocket.js";
@@ -1914,5 +1915,105 @@ export const cancelShiprocketOrder = async (req, res) => {
       error: true,
       message: "Failed to cancel order in Shiprocket"
     });
+  }
+};
+
+
+
+
+export const auditRazorpayOrders = async (req, res) => {
+  try {
+    const { days = 30 } = req.query; // default last 30 days
+    const from = Math.floor((Date.now() - days * 24 * 60 * 60 * 1000) / 1000);
+    const to = Math.floor(Date.now() / 1000);
+
+    // Fetch Razorpay orders
+    const rzpOrders = await razorpay.orders.all({ from, to, count: 100 });
+    const results = [];
+
+    for (const rzpOrder of rzpOrders.items) {
+      const dbOrder = await Order.findOne({
+        $or: [
+          { razorpayOrderId: rzpOrder.id },
+          { razorpayTokenOrderId: rzpOrder.id },
+        ],
+      }).populate("user", "name email");
+
+      results.push({
+        razorpayOrderId: rzpOrder.id,
+        amount: rzpOrder.amount / 100,
+        currency: rzpOrder.currency,
+        status: rzpOrder.status,
+        createdAt: new Date(rzpOrder.created_at * 1000),
+        email: rzpOrder.notes?.email || "-",
+        dbOrderId: dbOrder?._id || null,
+        dbStatus: dbOrder?.status || "NOT_FOUND",
+        dbPaymentStatus: dbOrder?.paymentStatus || "unknown",
+        dbUser: dbOrder?.user?.email || "-",
+      });
+    }
+
+    res.json({ success: true, results });
+  } catch (err) {
+    console.error("❌ Audit Error:", err);
+    res.status(500).json({ error: true, message: err.message });
+  }
+};
+
+
+
+
+
+// export const auditShiprocketOrders = async (req, res) => {
+//   try {
+//     const { days = 30 } = req.query;
+//     const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+//     // 🔹 Fetch recent orders from Shiprocket
+//     const shipOrdersRes = await getRecentShiprocketOrders({ days });
+//     // ⚠️ NOTE: If your utils don’t have this, you’ll need to call:
+//     // GET https://apiv2.shiprocket.in/v1/external/orders?per_page=100&page=1&from=YYYY-MM-DD&to=YYYY-MM-DD
+
+//     const results = [];
+
+//     for (const srOrder of shipOrdersRes.data || []) {
+//       const dbOrder = await Order.findOne({
+//         shiprocketOrderId: srOrder.order_id,
+//       }).populate("user", "name email");
+
+//       results.push({
+//         shiprocketOrderId: srOrder.order_id,
+//         orderDate: srOrder.order_date,
+//         status: srOrder.status,
+//         amount: srOrder.order_amount,
+//         courier: srOrder.courier_name || "-",
+//         awb: srOrder.awb_code || "-",
+//         dbOrderId: dbOrder?._id || null,
+//         dbStatus: dbOrder?.status || "NOT_FOUND",
+//         dbPaymentStatus: dbOrder?.paymentStatus || "unknown",
+//         dbUser: dbOrder?.user?.email || "-",
+//       });
+//     }
+
+//     res.json({ success: true, results });
+//   } catch (err) {
+//     console.error("❌ Shiprocket Audit Error:", err);
+//     res.status(500).json({ error: true, message: err.message });
+//   }
+// };
+
+
+
+export const auditShiprocketOrders = async (req, res) => {
+  try {
+    const { days = 30 } = req.query;
+    const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const from = fromDate.toISOString().split("T")[0];
+    const to = new Date().toISOString().split("T")[0];
+    const shipOrdersRes = await getRecentShiprocketOrders({ from, to, perPage: 100 });
+    // Now loop over shipOrdersRes.data to compare with your DB orders...
+    res.json(shipOrdersRes);
+  } catch (err) {
+    res.status(500).json({ error: true, message: err.message });
   }
 };
