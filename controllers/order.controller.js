@@ -97,6 +97,11 @@ export const createRazorpayOrder = async (req, res) => {
 
     const razorpayOrder = await razorpay.orders.create(options);
 
+    // 🔥 Save the Razorpay order_id in your DB order
+    await Order.findByIdAndUpdate(orderId, {
+      razorpayOrderId: razorpayOrder.id
+    });
+
     await createLog({
       user: req.user?._id || null,
       source: "API",
