@@ -19,6 +19,7 @@ import {
   cancelShiprocketOrder as cancelShiprocketOrderControllers,
 
 } from "../utils/shiprocket.js";
+import { createLog } from "../utils/log.js";
 
 
 
@@ -49,7 +50,7 @@ const validateStockAvailability = async (items) => {
         stockErrors.push(`Variant not found for product: ${product.name}`);
         continue;
       }
-      
+
       if (variant.inventory < item.quantity) {
         stockErrors.push(
           `Not enough stock for ${product.name} (${variant.sku || 'variant'}). Only ${variant.inventory} available, but ${item.quantity} requested`
@@ -96,12 +97,38 @@ export const createRazorpayOrder = async (req, res) => {
 
     const razorpayOrder = await razorpay.orders.create(options);
 
+    await createLog({
+      user: req.user?._id || null,
+      source: "API",
+      action: "CREATE_RAZORPAY_ORDER",
+      entity: "Order",
+      entityId: orderId,
+      status: "SUCCESS",
+      message: `Razorpay order created successfully`,
+      details: { options, razorpayOrder },
+      req,
+    });
+
+
     res.status(200).json({
       success: true,
       order: razorpayOrder
     });
   } catch (error) {
     console.error("❌ Razorpay Order Error:", error);
+
+    await createLog({
+      user: req.user?._id || null,
+      source: "API",
+      action: "CREATE_RAZORPAY_ORDER",
+      entity: "Order",
+      entityId: req.body?.orderId || null,
+      status: "FAILURE",
+      message: "Failed to create Razorpay order",
+      details: { error: error.message },
+      req,
+    });
+
     res.status(500).json({
       error: true,
       message: "Failed to create Razorpay order"
@@ -121,6 +148,19 @@ export const verifyRazorpayPayment = async (req, res) => {
       .digest("hex");
 
     if (generated_signature !== razorpay_signature) {
+
+      await createLog({
+        user: req.user?._id || null,
+        source: "API",
+        action: "VERIFY_RAZORPAY_PAYMENT",
+        entity: "Order",
+        entityId: orderId,
+        status: "FAILURE",
+        message: "Payment verification failed: Signature mismatch",
+        details: { razorpay_order_id, razorpay_payment_id },
+        req,
+      });
+
       return res.status(400).json({
         error: true,
         message: "Payment verification failed"
@@ -130,6 +170,18 @@ export const verifyRazorpayPayment = async (req, res) => {
     // Get order before updating
     const order = await Order.findById(orderId).populate("items.product");
     if (!order) {
+
+      await createLog({
+        source: "API",
+        action: "VERIFY_RAZORPAY_PAYMENT",
+        entity: "Order",
+        entityId: orderId,
+        status: "FAILURE",
+        message: "Order not found",
+        details: { razorpay_order_id, razorpay_payment_id },
+        req,
+      });
+
       return res.status(404).json({ error: true, message: "Order not found" });
     }
 
@@ -144,6 +196,19 @@ export const verifyRazorpayPayment = async (req, res) => {
       } catch (refundError) {
         console.error("❌ Refund failed:", refundError);
       }
+
+      await createLog({
+        user: order.user || null,
+        source: "API",
+        action: "VERIFY_RAZORPAY_PAYMENT",
+        entity: "Order",
+        entityId: orderId,
+        status: "FAILURE",
+        message: "Stock unavailable. Payment refunded.",
+        details: { stockErrors },
+        req,
+      });
+
 
       return res.status(400).json({
         error: true,
@@ -184,6 +249,25 @@ export const verifyRazorpayPayment = async (req, res) => {
       }
     }
 
+    // 🔹 Log successful verification
+    await createLog({
+      user: updatedOrder.user?._id || null,
+      source: "API",
+      action: "VERIFY_RAZORPAY_PAYMENT",
+      entity: "Order",
+      entityId: updatedOrder._id,
+      status: "SUCCESS",
+      message: "Payment verified successfully and stock deducted",
+      details: {
+        razorpay_order_id,
+        razorpay_payment_id,
+        orderId: updatedOrder._id,
+      },
+      req,
+    });
+
+
+
     // ✅ Push to Shiprocket
     try {
       const shiprocketRes = await createShiprocketOrder(updatedOrder);
@@ -194,10 +278,35 @@ export const verifyRazorpayPayment = async (req, res) => {
           courierName: shiprocketRes.courier_name || null,
           trackingUrl: shiprocketRes.tracking_url || null
         });
+
+
+        // 🔹 Log shiprocket success
+        await createLog({
+          user: updatedOrder.user?._id || null,
+          source: "INTEGRATION",
+          action: "PUSH_TO_SHIPROCKET",
+          entity: "Order",
+          entityId: updatedOrder._id,
+          status: "SUCCESS",
+          message: "Prepaid order pushed to Shiprocket",
+          details: shiprocketRes,
+        });
+
         console.log("✅ Prepaid order pushed to Shiprocket:", shiprocketRes.order_id);
       }
     } catch (err) {
       console.error("❌ Failed to push prepaid order to Shiprocket:", err.message);
+      // 🔹 Log shiprocket failure
+      await createLog({
+        user: updatedOrder.user?._id || null,
+        source: "INTEGRATION",
+        action: "PUSH_TO_SHIPROCKET",
+        entity: "Order",
+        entityId: updatedOrder._id,
+        status: "FAILURE",
+        message: "Failed to push prepaid order to Shiprocket",
+        details: { error: err.message },
+      });
     }
 
     res.status(200).json({
@@ -207,6 +316,21 @@ export const verifyRazorpayPayment = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Payment Verification Error:", error);
+
+    // 🔹 Log error
+    await createLog({
+      user: req.user?._id || null,
+      source: "API",
+      action: "VERIFY_RAZORPAY_PAYMENT",
+      entity: "Order",
+      entityId: req.body?.orderId || null,
+      status: "FAILURE",
+      message: "Failed to verify payment",
+      details: { error: error.message },
+      req,
+    });
+
+
     res.status(500).json({
       error: true,
       message: "Failed to verify payment"
@@ -223,17 +347,56 @@ export const placeOrder = async (req, res) => {
     const userId = req.user?._id;
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
+
+      // 🔹 Log invalid user
+      await createLog({
+        user: null,
+        source: "API",
+        action: "PLACE_ORDER",
+        entity: "Order",
+        status: "FAILURE",
+        message: "Invalid user ID while placing order",
+        details: { userId },
+        req,
+      });
+
       return res.status(400).json({ error: true, message: "Invalid user ID" });
     }
 
     if (!items || !items.length) {
+
+      // 🔹 Log empty cart
+      await createLog({
+        user: userId,
+        source: "API",
+        action: "PLACE_ORDER",
+        entity: "Order",
+        status: "FAILURE",
+        message: "Cart is empty while placing order",
+        details: {},
+        req,
+      });
+
       return res.status(400).json({ error: true, message: "Cart is empty" });
     }
 
     // ✅ Stock validation before creating order
     const { stockErrors, productUpdates } = await validateStockAvailability(items);
-    
+
     if (stockErrors.length > 0) {
+
+      // 🔹 Log stock error
+      await createLog({
+        user: userId,
+        source: "API",
+        action: "PLACE_ORDER",
+        entity: "Order",
+        status: "FAILURE",
+        message: "Stock validation failed while placing order",
+        details: { stockErrors },
+        req,
+      });
+
       return res.status(400).json({
         error: true,
         message: "Stock validation failed",
@@ -247,6 +410,19 @@ export const placeOrder = async (req, res) => {
     if (mongoose.Types.ObjectId.isValid(shippingAddress)) {
       const userAddress = user.addresses.id(shippingAddress);
       if (!userAddress) {
+
+        // 🔹 Log address not found
+        await createLog({
+          user: userId,
+          source: "API",
+          action: "PLACE_ORDER",
+          entity: "Order",
+          status: "FAILURE",
+          message: "Address not found in user profile",
+          details: { shippingAddress },
+          req,
+        });
+
         return res.status(400).json({ error: true, message: "Address not found" });
       }
 
@@ -261,8 +437,34 @@ export const placeOrder = async (req, res) => {
         name: user.name,
         email: user.email
       };
+
+      // 🔹 Log using saved address
+      await createLog({
+        user: userId,
+        source: "API",
+        action: "PLACE_ORDER",
+        entity: "Order",
+        status: "INFO",
+        message: "Using saved address for order",
+        details: { addressId: shippingAddress },
+        req,
+      });
+
     } else {
       shippingAddressData = shippingAddress;
+
+      // 🔹 Log using custom address
+      await createLog({
+        user: userId,
+        source: "API",
+        action: "PLACE_ORDER",
+        entity: "Order",
+        status: "INFO",
+        message: "Using custom shipping address for order",
+        details: { shippingAddress },
+        req,
+      });
+
     }
 
     const orderData = {
@@ -296,14 +498,46 @@ export const placeOrder = async (req, res) => {
 
       const razorpayOrder = await razorpay.orders.create(options);
       orderData.razorpayTokenOrderId = razorpayOrder.id;
+
+      // 🔹 Log COD token order creation
+      await createLog({
+        user: userId,
+        source: "API",
+        action: "PLACE_ORDER",
+        entity: "Order",
+        status: "INFO",
+        message: "COD token Razorpay order created",
+        details: { razorpayOrder, tokenAmount: orderData.tokenAmount },
+        req,
+      });
+
     }
 
     const order = await Order.create(orderData);
 
+
+    // 🔹 Log final order creation
+    await createLog({
+      user: userId,
+      source: "API",
+      action: "PLACE_ORDER",
+      entity: "Order",
+      entityId: order._id,
+      status: "SUCCESS",
+      message: "Order placed successfully",
+      details: {
+        paymentMethod,
+        total,
+        paymentType: paymentMethod === "cod" ? "cod_token" : "razorpay"
+      },
+      req,
+    });
+
+
     return res.status(201).json({
       success: true,
-      message: paymentMethod === "cod" 
-        ? "COD order created. Token payment required." 
+      message: paymentMethod === "cod"
+        ? "COD order created. Token payment required."
         : "Order created. Proceed to payment.",
       order,
       paymentRequired: true,
@@ -311,6 +545,20 @@ export const placeOrder = async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Place Order Error:", err);
+
+    // 🔹 Log fatal error
+    await createLog({
+      user: req.user?._id || null,
+      source: "API",
+      action: "PLACE_ORDER",
+      entity: "Order",
+      status: "FAILURE",
+      message: "Failed to place order",
+      details: { error: err.message },
+      req,
+    });
+
+
     return res.status(500).json({
       error: true,
       message: err.message || "Failed to place order"
@@ -321,89 +569,239 @@ export const placeOrder = async (req, res) => {
 
 
 // ✅ Verify COD Token Payment
+// export const verifyCodTokenPayment = async (req, res) => {
+//   try {
+//     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
+
+//     const generated_signature = crypto
+//       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+//       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+//       .digest("hex");
+
+//     if (generated_signature !== razorpay_signature) {
+//       return res.status(400).json({ error: true, message: "Token payment verification failed" });
+//     }
+
+//     // Get order before updating
+//     const order = await Order.findById(orderId).populate("items.product");
+//     if (!order) {
+//       return res.status(404).json({ error: true, message: "Order not found" });
+//     }
+
+//     // ✅ Final stock validation
+//     const { stockErrors } = await validateStockAvailability(order.items);
+//     if (stockErrors.length > 0) {
+//       return res.status(400).json({
+//         error: true,
+//         message: "Stock unavailable",
+//         details: stockErrors
+//       });
+//     }
+
+//     const updatedOrder = await Order.findByIdAndUpdate(
+//       orderId,
+//       {
+//         status: "confirmed",
+//         tokenPaymentStatus: "paid",
+//         razorpayTokenPaymentId: razorpay_payment_id,
+//         razorpayTokenSignature: razorpay_signature
+//       },
+//       { new: true }
+//     ).populate("items.product").populate("user", "name email phone");
+
+//     // ✅ Deduct stock
+//     for (const item of updatedOrder.items) {
+//       const product = await Product.findById(item.product);
+//       if (!product) continue;
+
+//       if (item.variant && item.variant !== "default") {
+//         const variant = product.variants.id(item.variant);
+//         if (variant) {
+//           variant.inventory -= item.quantity;
+//           await product.save();
+//         }
+//       } else {
+//         product.stock -= item.quantity;
+//         await product.save();
+//       }
+//     }
+
+//     // ✅ Push to Shiprocket
+//     try {
+//       const shiprocketRes = await createShiprocketOrder(updatedOrder);
+//       if (shiprocketRes && shiprocketRes.order_id) {
+//         await Order.findByIdAndUpdate(updatedOrder._id, {
+//           shiprocketOrderId: shiprocketRes.order_id,
+//           awbCode: shiprocketRes.awb_code || null,
+//           courierName: shiprocketRes.courier_name || null,
+//           trackingUrl: shiprocketRes.tracking_url || null
+//         });
+//         console.log("✅ COD order pushed to Shiprocket:", shiprocketRes.order_id);
+//       }
+//     } catch (err) {
+//       console.error("❌ Failed to push COD order to Shiprocket:", err.message);
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       order: updatedOrder,
+//       message: "COD token payment verified successfully"
+//     });
+//   } catch (err) {
+//     console.error("❌ COD Token Payment Verification Error:", err);
+//     res.status(500).json({ error: true, message: "Failed to verify COD token payment" });
+//   }
+// };
+
+
+
+// ✅ Verify COD Token Payment
 export const verifyCodTokenPayment = async (req, res) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
-    const generated_signature = crypto
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .update(body.toString())
       .digest("hex");
 
-    if (generated_signature !== razorpay_signature) {
-      return res.status(400).json({ error: true, message: "Token payment verification failed" });
+    if (expectedSignature !== razorpay_signature) {
+      // 🔹 Log invalid signature
+      await createLog({
+        user: req.user?._id || null,
+        source: "API",
+        action: "VERIFY_COD_TOKEN",
+        entity: "Order",
+        status: "FAILURE",
+        message: "Invalid Razorpay signature for COD token payment",
+        details: { razorpay_order_id, razorpay_payment_id },
+        req,
+      });
+
+      return res.status(400).json({ error: true, message: "Invalid signature" });
     }
 
-    // Get order before updating
-    const order = await Order.findById(orderId).populate("items.product");
+    const order = await Order.findOne({ razorpayTokenOrderId: razorpay_order_id }).populate("items.product");
     if (!order) {
+      // 🔹 Log missing order
+      await createLog({
+        user: req.user?._id || null,
+        source: "API",
+        action: "VERIFY_COD_TOKEN",
+        entity: "Order",
+        status: "FAILURE",
+        message: "Order not found for Razorpay COD token",
+        details: { razorpay_order_id },
+        req,
+      });
+
       return res.status(404).json({ error: true, message: "Order not found" });
     }
 
-    // ✅ Final stock validation
+    // ✅ Mark token payment as success
+    order.tokenPaymentStatus = "success";
+    order.razorpayTokenPaymentId = razorpay_payment_id;
+    order.tokenPaymentDate = new Date();
+
+    // 🔹 Log token success
+    await createLog({
+      user: order.user,
+      source: "API",
+      action: "VERIFY_COD_TOKEN",
+      entity: "Order",
+      entityId: order._id,
+      status: "SUCCESS",
+      message: "COD token payment verified successfully",
+      details: { razorpay_order_id, razorpay_payment_id },
+      req,
+    });
+
+    // ✅ Stock validation
     const { stockErrors } = await validateStockAvailability(order.items);
     if (stockErrors.length > 0) {
+      order.status = "cancelled";
+      await order.save();
+
+      // 🔹 Log stock failure
+      await createLog({
+        user: order.user,
+        source: "API",
+        action: "VERIFY_COD_TOKEN",
+        entity: "Order",
+        entityId: order._id,
+        status: "FAILURE",
+        message: "Stock validation failed after COD token payment",
+        details: { stockErrors },
+        req,
+      });
+
       return res.status(400).json({
         error: true,
-        message: "Stock unavailable",
+        message: "Stock validation failed",
         details: stockErrors
       });
     }
 
-    const updatedOrder = await Order.findByIdAndUpdate(
-      orderId,
-      {
-        status: "confirmed",
-        tokenPaymentStatus: "paid",
-        razorpayTokenPaymentId: razorpay_payment_id,
-        razorpayTokenSignature: razorpay_signature
-      },
-      { new: true }
-    ).populate("items.product").populate("user", "name email phone");
-
     // ✅ Deduct stock
-    for (const item of updatedOrder.items) {
-      const product = await Product.findById(item.product);
-      if (!product) continue;
+    await deductStock(order.items);
 
-      if (item.variant && item.variant !== "default") {
-        const variant = product.variants.id(item.variant);
-        if (variant) {
-          variant.inventory -= item.quantity;
-          await product.save();
-        }
-      } else {
-        product.stock -= item.quantity;
-        await product.save();
-      }
-    }
+    order.status = "confirmed";
+    await order.save();
 
-    // ✅ Push to Shiprocket
-    try {
-      const shiprocketRes = await createShiprocketOrder(updatedOrder);
-      if (shiprocketRes && shiprocketRes.order_id) {
-        await Order.findByIdAndUpdate(updatedOrder._id, {
-          shiprocketOrderId: shiprocketRes.order_id,
-          awbCode: shiprocketRes.awb_code || null,
-          courierName: shiprocketRes.courier_name || null,
-          trackingUrl: shiprocketRes.tracking_url || null
-        });
-        console.log("✅ COD order pushed to Shiprocket:", shiprocketRes.order_id);
-      }
-    } catch (err) {
-      console.error("❌ Failed to push COD order to Shiprocket:", err.message);
-    }
-
-    res.status(200).json({
-      success: true,
-      order: updatedOrder,
-      message: "COD token payment verified successfully"
+    // 🔹 Log order confirmation
+    await createLog({
+      user: order.user,
+      source: "API",
+      action: "VERIFY_COD_TOKEN",
+      entity: "Order",
+      entityId: order._id,
+      status: "SUCCESS",
+      message: "Order confirmed after COD token payment",
+      details: { total: order.total, remainingCOD: order.remainingCOD },
+      req,
     });
-  } catch (err) {
-    console.error("❌ COD Token Payment Verification Error:", err);
-    res.status(500).json({ error: true, message: "Failed to verify COD token payment" });
+
+    // ✅ Push order to Shiprocket
+    await pushOrderToShiprocket(order);
+
+    // 🔹 Log Shiprocket sync
+    await createLog({
+      user: order.user,
+      source: "API",
+      action: "SHIPROCKET_SYNC",
+      entity: "Order",
+      entityId: order._id,
+      status: "SUCCESS",
+      message: "Order pushed to Shiprocket after COD token verification",
+      details: { shiprocketStatus: "pushed" },
+      req,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "COD token payment verified successfully, order confirmed",
+      order
+    });
+  } catch (error) {
+    console.error("❌ Verify COD Token Payment Error:", error);
+
+    // 🔹 Log fatal error
+    await createLog({
+      user: req.user?._id || null,
+      source: "API",
+      action: "VERIFY_COD_TOKEN",
+      entity: "Order",
+      status: "FAILURE",
+      message: "Error verifying COD token payment",
+      details: { error: error.message },
+      req,
+    });
+
+    return res.status(500).json({ error: true, message: "Error verifying COD token payment" });
   }
 };
+
 
 
 // ✅ Razorpay Webhook
@@ -422,6 +820,17 @@ export const razorpayWebhook = async (req, res) => {
 
     if (expectedSignature !== signature) {
       console.error("❌ Invalid webhook signature");
+
+      // 🔹 Log invalid signature
+      await createLog({
+        source: "WEBHOOK",
+        action: "RAZORPAY_WEBHOOK",
+        entity: "Webhook",
+        status: "FAILURE",
+        message: "Invalid webhook signature",
+        details: { signature, body },
+      });
+
       return res.status(400).json({ error: true, message: "Invalid webhook signature" });
     }
 
@@ -431,7 +840,18 @@ export const razorpayWebhook = async (req, res) => {
     // ✅ PAYMENT CAPTURED - Main event
     if (event === "payment.captured") {
       const payment = body.payload.payment.entity;
-      
+
+      // 🔹 Log payment capture received
+      await createLog({
+        source: "WEBHOOK",
+        action: "PAYMENT_CAPTURED",
+        entity: "Order",
+        status: "INFO",
+        message: "Razorpay payment captured webhook received",
+        details: payment,
+      });
+
+
       // 🔍 Find order by either razorpayOrderId OR razorpayTokenOrderId
       const order = await Order.findOne({
         $or: [
@@ -439,32 +859,54 @@ export const razorpayWebhook = async (req, res) => {
           { razorpayTokenOrderId: payment.order_id }
         ]
       })
-      .populate("items.product")
-      .populate("user", "name email phone");
+        .populate("items.product")
+        .populate("user", "name email phone");
 
       if (!order) {
         console.warn("⚠️ Order not found for Razorpay order_id:", payment.order_id);
+
+        // 🔹 Log missing order
+        await createLog({
+          source: "WEBHOOK",
+          action: "PAYMENT_CAPTURED",
+          entity: "Order",
+          status: "FAILURE",
+          message: "Order not found for captured payment",
+          details: { razorpay_order_id: payment.order_id },
+        });
+
         return res.json({ status: "ok" });
       }
 
       // ✅ Check if already processed
       if (order.paymentMethod === "cod" && order.tokenPaymentStatus === "paid") {
         console.log("ℹ️ COD token already paid:", order._id);
+
+        // 🔹 Log already processed
+        await createLog({
+          source: "WEBHOOK",
+          action: "PAYMENT_CAPTURED",
+          entity: "Order",
+          entityId: order._id,
+          status: "INFO",
+          message: "Payment already processed. Skipping duplicate webhook",
+        });
+
         return res.json({ status: "ok" });
       }
-      
+
       if (order.paymentMethod === "razorpay" && order.paymentStatus === "completed") {
         console.log("ℹ️ Order already paid:", order._id);
         return res.json({ status: "ok" });
       }
 
       // ✅ Determine payment type
-      const isCodTokenPayment = 
-        order.paymentMethod === "cod" && 
+      const isCodTokenPayment =
+        order.paymentMethod === "cod" &&
         payment.order_id === order.razorpayTokenOrderId;
-      
-      const isFullPayment = 
-        order.paymentMethod === "razorpay" && 
+
+      const isFullPayment =
+        order.paymentMethod === "razorpay" &&
         payment.order_id === order.razorpayOrderId;
 
       console.log(`💰 Payment Details:`, {
@@ -488,6 +930,21 @@ export const razorpayWebhook = async (req, res) => {
         updateData.status = "confirmed";
         updateData.razorpayTokenPaymentId = payment.id;
 
+
+        // 🔹 Log COD token payment success
+        await createLog({
+          user: order.user?._id || null,
+          source: "WEBHOOK",
+          action: "COD_TOKEN_PAYMENT",
+          entity: "Order",
+          entityId: order._id,
+          status: "SUCCESS",
+          message: "COD token payment successful via webhook",
+          details: payment,
+        });
+
+
+
         console.log(`✅ COD Token paid for order: ${order._id}`);
       } else if (isFullPayment) {
         // ✅ Full Prepaid Payment
@@ -495,7 +952,21 @@ export const razorpayWebhook = async (req, res) => {
         updateData.isPaid = true;
         updateData.status = "confirmed";
 
+
         console.log(`✅ Full payment received for order: ${order._id}`);
+
+        // 🔹 Log full payment success
+        await createLog({
+          user: order.user?._id || null,
+          source: "WEBHOOK",
+          action: "FULL_PAYMENT",
+          entity: "Order",
+          entityId: order._id,
+          status: "SUCCESS",
+          message: "Full prepaid payment successful via webhook",
+          details: payment,
+        });
+
       }
 
       // ✅ Update order
@@ -525,9 +996,36 @@ export const razorpayWebhook = async (req, res) => {
             trackingUrl: shiprocketRes.tracking_url
           });
           console.log("✅ Order pushed to Shiprocket:", shiprocketRes.order_id);
+
+          // 🔹 Log Shiprocket success
+          await createLog({
+            user: updatedOrder.user?._id || null,
+            source: "INTEGRATION",
+            action: "SHIPROCKET_PUSH",
+            entity: "Order",
+            entityId: updatedOrder._id,
+            status: "SUCCESS",
+            message: "Order pushed to Shiprocket via webhook",
+            details: shiprocketRes,
+          });
+
+
         }
       } catch (shiprocketErr) {
         console.error("❌ Shiprocket error:", shiprocketErr.message);
+
+        // 🔹 Log Shiprocket failure
+        await createLog({
+          user: updatedOrder.user?._id || null,
+          source: "INTEGRATION",
+          action: "SHIPROCKET_PUSH",
+          entity: "Order",
+          entityId: updatedOrder._id,
+          status: "FAILURE",
+          message: "Failed to push order to Shiprocket",
+          details: { error: shiprocketErr.message },
+        });
+
       }
 
       // ✅ Send confirmation email/SMS
@@ -549,8 +1047,34 @@ export const razorpayWebhook = async (req, res) => {
 
           await SendSMS({ phone: updatedOrder.shippingAddress.phone, message: smsMessage });
         }
+
+        // 🔹 Log notification sent
+        await createLog({
+          user: updatedOrder.user?._id || null,
+          source: "SERVICE",
+          action: "ORDER_NOTIFICATION",
+          entity: "Order",
+          entityId: updatedOrder._id,
+          status: "SUCCESS",
+          message: "Email/SMS notifications sent",
+        });
+
+
       } catch (notificationErr) {
         console.error("❌ Notification error:", notificationErr);
+
+        // 🔹 Log notification failure
+        await createLog({
+          user: updatedOrder.user?._id || null,
+          source: "SERVICE",
+          action: "ORDER_NOTIFICATION",
+          entity: "Order",
+          entityId: updatedOrder._id,
+          status: "FAILURE",
+          message: "Failed to send notifications",
+          details: { error: notificationErr.message },
+        });
+
       }
     }
 
@@ -565,7 +1089,7 @@ export const razorpayWebhook = async (req, res) => {
           { razorpayTokenOrderId: payment.order_id }
         ]
       });
-      
+
       if (order) {
         if (payment.order_id === order.razorpayTokenOrderId) {
           // COD token payment failed
@@ -581,12 +1105,36 @@ export const razorpayWebhook = async (req, res) => {
           });
         }
         console.log(`❌ Payment failed for order: ${order._id}`);
+
+        // 🔹 Log payment failure
+        await createLog({
+          user: order.user?._id || null,
+          source: "WEBHOOK",
+          action: "PAYMENT_FAILED",
+          entity: "Order",
+          entityId: order._id,
+          status: "FAILURE",
+          message: "Razorpay payment failed",
+          details: payment,
+        });
+
       }
     }
 
     res.json({ status: "ok" });
   } catch (err) {
     console.error("❌ Webhook processing error:", err);
+
+    // 🔹 Log fatal webhook error
+    await createLog({
+      source: "WEBHOOK",
+      action: "RAZORPAY_WEBHOOK",
+      entity: "Webhook",
+      status: "FAILURE",
+      message: "Webhook processing failed",
+      details: { error: err.message },
+    });
+
     res.status(500).json({ error: true, message: "Webhook processing failed" });
   }
 };
@@ -595,21 +1143,21 @@ export const razorpayWebhook = async (req, res) => {
 export const fixStuckOrders = async (req, res) => {
   try {
     console.log('🔄 Starting stuck orders fix...');
-    
+
     const stuckOrders = await Order.find({
       $or: [
-        { 
-          paymentMethod: "cod", 
-          tokenPaymentStatus: "pending", 
-          status: "pending" 
+        {
+          paymentMethod: "cod",
+          tokenPaymentStatus: "pending",
+          status: "pending"
         },
-        { 
-          paymentMethod: "razorpay", 
-          paymentStatus: "pending", 
-          status: "pending" 
+        {
+          paymentMethod: "razorpay",
+          paymentStatus: "pending",
+          status: "pending"
         }
       ],
-      createdAt: { 
+      createdAt: {
         $gte: new Date(Date.now() - 72 * 60 * 60 * 1000) // Last 72 hours
       }
     });
@@ -625,18 +1173,18 @@ export const fixStuckOrders = async (req, res) => {
     for (const order of stuckOrders) {
       try {
         console.log(`\n📦 Checking order: ${order._id}`);
-        
+
         let razorpayOrderId = order.razorpayTokenOrderId || order.razorpayOrderId;
-        
+
         if (razorpayOrderId) {
           const cleanOrderId = razorpayOrderId.replace('order_', '');
-          
+
           try {
             const payments = await razorpay.orders.fetchPayments(cleanOrderId);
-            
+
             if (payments.items && payments.items.length > 0) {
               const payment = payments.items[0];
-              
+
               if (payment.status === "captured") {
                 // ✅ REAL STUCK ORDER: Payment exists but not recorded
                 await Order.findByIdAndUpdate(order._id, {
@@ -645,11 +1193,11 @@ export const fixStuckOrders = async (req, res) => {
                   razorpayTokenPaymentId: payment.id,
                   paidAt: new Date(payment.created_at * 1000)
                 });
-                
+
                 fixedCount++;
                 fixedOrders.push(order._id);
                 console.log(`✅ Fixed stuck order: ${order._id}`);
-                
+
               } else {
                 // ⚠️ Payment exists but not captured
                 abandonedCount++;
@@ -704,7 +1252,7 @@ export const fixStuckOrders = async (req, res) => {
       fixedOrders,
       abandonedOrders,
       failedOrders,
-      message: abandonedCount > 0 
+      message: abandonedCount > 0
         ? `Found ${abandonedCount} abandoned orders that need manual review`
         : `Processed ${stuckOrders.length} orders`
     });
@@ -720,7 +1268,7 @@ export const fixStuckOrders = async (req, res) => {
 export const debugOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
-    
+
     const order = await Order.findById(orderId)
       .populate("items.product")
       .populate("user", "name email phone");
