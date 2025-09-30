@@ -812,16 +812,14 @@ export const razorpayWebhook = async (req, res) => {
     const signature = req.headers["x-razorpay-signature"];
     const body = req.body;
 
-    // 🔑 Verify webhook signature
+    // Verify webhook signature
     const expectedSignature = crypto
       .createHmac("sha256", secret)
       .update(JSON.stringify(body))
       .digest("hex");
 
     if (expectedSignature !== signature) {
-      console.error("❌ Invalid webhook signature");
-
-      // 🔹 Log invalid signature
+      console.error(":x: Invalid webhook signature");
       await createLog({
         source: "WEBHOOK",
         action: "RAZORPAY_WEBHOOK",
@@ -830,92 +828,95 @@ export const razorpayWebhook = async (req, res) => {
         message: "Invalid webhook signature",
         details: { signature, body },
       });
-
       return res.status(400).json({ error: true, message: "Invalid webhook signature" });
     }
 
     const event = body.event;
-    console.log(`🔔 Webhook Received: ${event}`, body.payload.payment.entity.amount);
+    console.log(`:bell: Webhook Received: ${event}`, body.payload);
 
-    // ✅ PAYMENT CAPTURED - Main event
-    if (event === "payment.captured") {
-      const payment = body.payload.payment.entity;
+    // Handle both payment.captured and order.paid events
+    if (event === "payment.captured" || event === "order.paid") {
+      let payment, orderId;
 
-      // 🔹 Log payment capture received
+      if (event === "payment.captured") {
+        payment = body.payload.payment.entity;
+        orderId = payment.order_id;
+        console.log(`:moneybag: Payment captured amount: ${payment.amount}`);
+      } else if (event === "order.paid") {
+        payment = body.payload.payment.entity;
+        orderId = body.payload.order.entity.id;
+        console.log(`:moneybag: Order paid amount: ${payment.amount}`);
+      }
+
+      // Log payment capture received
       await createLog({
         source: "WEBHOOK",
-        action: "PAYMENT_CAPTURED",
+        action: event === "payment.captured" ? "PAYMENT_CAPTURED" : "ORDER_PAID",
         entity: "Order",
         status: "INFO",
-        message: "Razorpay payment captured webhook received",
-        details: payment,
+        message: `Razorpay ${event} webhook received`,
+        details: { payment, orderId, event },
       });
 
-
-      // 🔍 Find order by either razorpayOrderId OR razorpayTokenOrderId
+      // Find order by either razorpayOrderId OR razorpayTokenOrderId
       const order = await Order.findOne({
         $or: [
-          { razorpayOrderId: payment.order_id },
-          { razorpayTokenOrderId: payment.order_id }
+          { razorpayOrderId: orderId },
+          { razorpayTokenOrderId: orderId }
         ]
       })
         .populate("items.product")
         .populate("user", "name email phone");
 
       if (!order) {
-        console.warn("⚠️ Order not found for Razorpay order_id:", payment.order_id);
-
-        // 🔹 Log missing order
+        console.warn(":warning: Order not found for Razorpay order_id:", orderId);
         await createLog({
           source: "WEBHOOK",
-          action: "PAYMENT_CAPTURED",
+          action: event === "payment.captured" ? "PAYMENT_CAPTURED" : "ORDER_PAID",
           entity: "Order",
           status: "FAILURE",
-          message: "Order not found for captured payment",
-          details: { razorpay_order_id: payment.order_id },
+          message: "Order not found for payment",
+          details: { razorpay_order_id: orderId, event },
         });
-
         return res.json({ status: "ok" });
       }
 
-      // ✅ Check if already processed
+      // Check if already processed
       if (order.paymentMethod === "cod" && order.tokenPaymentStatus === "paid") {
-        console.log("ℹ️ COD token already paid:", order._id);
-
-        // 🔹 Log already processed
+        console.log(":information_source: COD token already paid:", order._id);
         await createLog({
           source: "WEBHOOK",
-          action: "PAYMENT_CAPTURED",
+          action: event === "payment.captured" ? "PAYMENT_CAPTURED" : "ORDER_PAID",
           entity: "Order",
           entityId: order._id,
           status: "INFO",
           message: "Payment already processed. Skipping duplicate webhook",
         });
-
         return res.json({ status: "ok" });
       }
 
       if (order.paymentMethod === "razorpay" && order.paymentStatus === "completed") {
-        console.log("ℹ️ Order already paid:", order._id);
+        console.log(":information_source: Order already paid:", order._id);
         return res.json({ status: "ok" });
       }
 
-      // ✅ Determine payment type
+      // Determine payment type
       const isCodTokenPayment =
         order.paymentMethod === "cod" &&
-        payment.order_id === order.razorpayTokenOrderId;
+        orderId === order.razorpayTokenOrderId;
 
       const isFullPayment =
         order.paymentMethod === "razorpay" &&
-        payment.order_id === order.razorpayOrderId;
+        orderId === order.razorpayOrderId;
 
-      console.log(`💰 Payment Details:`, {
+      console.log(`:moneybag: Payment Details:`, {
         orderId: order._id,
         paymentMethod: order.paymentMethod,
         isCodTokenPayment,
         isFullPayment,
         paymentAmount: payment.amount,
-        expectedTokenAmount: order.tokenAmount * 100
+        expectedTokenAmount: order.tokenAmount * 100,
+        event
       });
 
       let updateData = {
@@ -925,13 +926,11 @@ export const razorpayWebhook = async (req, res) => {
       };
 
       if (isCodTokenPayment) {
-        // ✅ COD Token Payment
+        // COD Token Payment
         updateData.tokenPaymentStatus = "paid";
         updateData.status = "confirmed";
         updateData.razorpayTokenPaymentId = payment.id;
 
-
-        // 🔹 Log COD token payment success
         await createLog({
           user: order.user?._id || null,
           source: "WEBHOOK",
@@ -940,22 +939,16 @@ export const razorpayWebhook = async (req, res) => {
           entityId: order._id,
           status: "SUCCESS",
           message: "COD token payment successful via webhook",
-          details: payment,
+          details: { payment, event },
         });
-
-
-
-        console.log(`✅ COD Token paid for order: ${order._id}`);
+        console.log(`:white_tick: COD Token paid for order: ${order._id}`);
       } else if (isFullPayment) {
-        // ✅ Full Prepaid Payment
+        // Full Prepaid Payment
         updateData.paymentStatus = "completed";
         updateData.isPaid = true;
         updateData.status = "confirmed";
 
-
-        console.log(`✅ Full payment received for order: ${order._id}`);
-
-        // 🔹 Log full payment success
+        console.log(`:white_tick: Full payment received for order: ${order._id}`);
         await createLog({
           user: order.user?._id || null,
           source: "WEBHOOK",
@@ -964,20 +957,19 @@ export const razorpayWebhook = async (req, res) => {
           entityId: order._id,
           status: "SUCCESS",
           message: "Full prepaid payment successful via webhook",
-          details: payment,
+          details: { payment, event },
         });
-
       }
 
-      // ✅ Update order
+      // Update order
       const updatedOrder = await Order.findByIdAndUpdate(order._id, updateData, { new: true });
 
-      // ✅ Deduct stock (both cases)
+      // Deduct stock (both cases)
       for (const item of updatedOrder.items) {
         const product = await Product.findById(item.product);
         if (product) {
           if (product.stock < item.quantity) {
-            console.error(`❌ Insufficient stock for ${product.name}`);
+            console.error(`:x: Insufficient stock for ${product.name}`);
             continue;
           }
           product.stock -= item.quantity;
@@ -985,7 +977,7 @@ export const razorpayWebhook = async (req, res) => {
         }
       }
 
-      // ✅ Push to Shiprocket (both cases)
+      // Push to Shiprocket (both cases)
       try {
         const shiprocketRes = await createShiprocketOrder(updatedOrder);
         if (shiprocketRes?.order_id) {
@@ -995,9 +987,7 @@ export const razorpayWebhook = async (req, res) => {
             courierName: shiprocketRes.courier_name,
             trackingUrl: shiprocketRes.tracking_url
           });
-          console.log("✅ Order pushed to Shiprocket:", shiprocketRes.order_id);
-
-          // 🔹 Log Shiprocket success
+          console.log(":white_tick: Order pushed to Shiprocket:", shiprocketRes.order_id);
           await createLog({
             user: updatedOrder.user?._id || null,
             source: "INTEGRATION",
@@ -1008,13 +998,9 @@ export const razorpayWebhook = async (req, res) => {
             message: "Order pushed to Shiprocket via webhook",
             details: shiprocketRes,
           });
-
-
         }
       } catch (shiprocketErr) {
-        console.error("❌ Shiprocket error:", shiprocketErr.message);
-
-        // 🔹 Log Shiprocket failure
+        console.error(":x: Shiprocket error:", shiprocketErr.message);
         await createLog({
           user: updatedOrder.user?._id || null,
           source: "INTEGRATION",
@@ -1025,10 +1011,9 @@ export const razorpayWebhook = async (req, res) => {
           message: "Failed to push order to Shiprocket",
           details: { error: shiprocketErr.message },
         });
-
       }
 
-      // ✅ Send confirmation email/SMS
+      // Send confirmation email/SMS
       try {
         if (updatedOrder.user?.email) {
           const emailTemplate = generateOrderEmail(updatedOrder);
@@ -1038,17 +1023,14 @@ export const razorpayWebhook = async (req, res) => {
             html: emailTemplate
           });
         }
-
         if (updatedOrder.shippingAddress?.phone) {
           const smsMessage = `Hi ${updatedOrder?.user?.name || "Customer"}, your order ${updatedOrder._id
             .toString()
             .slice(-6)
             .toUpperCase()} has been placed successfully on ${new Date().toLocaleDateString("en-IN")} via ExPro! We'll notify you once it's shipped. Thanks for shopping with us.`;
-
           await SendSMS({ phone: updatedOrder.shippingAddress.phone, message: smsMessage });
         }
 
-        // 🔹 Log notification sent
         await createLog({
           user: updatedOrder.user?._id || null,
           source: "SERVICE",
@@ -1058,12 +1040,8 @@ export const razorpayWebhook = async (req, res) => {
           status: "SUCCESS",
           message: "Email/SMS notifications sent",
         });
-
-
       } catch (notificationErr) {
-        console.error("❌ Notification error:", notificationErr);
-
-        // 🔹 Log notification failure
+        console.error(":x: Notification error:", notificationErr);
         await createLog({
           user: updatedOrder.user?._id || null,
           source: "SERVICE",
@@ -1074,24 +1052,23 @@ export const razorpayWebhook = async (req, res) => {
           message: "Failed to send notifications",
           details: { error: notificationErr.message },
         });
-
       }
     }
 
-    // ✅ PAYMENT FAILED event
+    // Handle payment failed event for both payment.failed and order.paid could have failed scenarios
     if (event === "payment.failed") {
       const payment = body.payload.payment.entity;
+      const orderId = payment.order_id;
 
-      // Find order by either order ID
       const order = await Order.findOne({
         $or: [
-          { razorpayOrderId: payment.order_id },
-          { razorpayTokenOrderId: payment.order_id }
+          { razorpayOrderId: orderId },
+          { razorpayTokenOrderId: orderId }
         ]
       });
 
       if (order) {
-        if (payment.order_id === order.razorpayTokenOrderId) {
+        if (orderId === order.razorpayTokenOrderId) {
           // COD token payment failed
           await Order.findByIdAndUpdate(order._id, {
             tokenPaymentStatus: "failed",
@@ -1104,9 +1081,7 @@ export const razorpayWebhook = async (req, res) => {
             status: "failed"
           });
         }
-        console.log(`❌ Payment failed for order: ${order._id}`);
-
-        // 🔹 Log payment failure
+        console.log(`:x: Payment failed for order: ${order._id}`);
         await createLog({
           user: order.user?._id || null,
           source: "WEBHOOK",
@@ -1117,15 +1092,12 @@ export const razorpayWebhook = async (req, res) => {
           message: "Razorpay payment failed",
           details: payment,
         });
-
       }
     }
 
     res.json({ status: "ok" });
   } catch (err) {
-    console.error("❌ Webhook processing error:", err);
-
-    // 🔹 Log fatal webhook error
+    console.error(":x: Webhook processing error:", err);
     await createLog({
       source: "WEBHOOK",
       action: "RAZORPAY_WEBHOOK",
@@ -1134,11 +1106,9 @@ export const razorpayWebhook = async (req, res) => {
       message: "Webhook processing failed",
       details: { error: err.message },
     });
-
     res.status(500).json({ error: true, message: "Webhook processing failed" });
   }
 };
-
 
 export const fixStuckOrders = async (req, res) => {
   try {
