@@ -494,34 +494,37 @@ export const placeOrder = async (req, res) => {
     };
 
     // ✅ COD Flow with Token
-    if (paymentMethod === "cod") {
-      orderData.tokenAmount = 1000;
-      orderData.remainingCOD = total - 1000;
-      orderData.tokenPaymentStatus = "pending";
+    let razorpayOrder = null; // declare outside
 
-      const options = {
-        amount: 1000 * 100,
-        currency: "INR",
-        receipt: `order_${Date.now()}`,
-        payment_capture: 1
-      };
+// ✅ COD Flow with Token
+if (paymentMethod === "cod") {
+  orderData.tokenAmount = 1000;
+  orderData.remainingCOD = total - 1000;
+  orderData.tokenPaymentStatus = "pending";
 
-      const razorpayOrder = await razorpay.orders.create(options);
-      orderData.razorpayTokenOrderId = razorpayOrder.id;
+  const options = {
+    amount: 1000 * 100,
+    currency: "INR",
+    receipt: `order_${Date.now()}`,
+    payment_capture: 1
+  };
 
-      // 🔹 Log COD token order creation
-      await createLog({
-        user: userId,
-        source: "API",
-        action: "PLACE_ORDER",
-        entity: "Order",
-        status: "INFO",
-        message: "COD token Razorpay order created",
-        details: { razorpayOrder, tokenAmount: orderData.tokenAmount },
-        req,
-      });
+  razorpayOrder = await razorpay.orders.create(options);
+  orderData.razorpayTokenOrderId = razorpayOrder.id;
 
-    }
+  // 🔹 Log COD token order creation
+  await createLog({
+    user: userId,
+    source: "API",
+    action: "PLACE_ORDER",
+    entity: "Order",
+    status: "INFO",
+    message: "COD token Razorpay order created",
+    details: { razorpayOrder, tokenAmount: orderData.tokenAmount },
+    req,
+  });
+}
+
 
     const order = await Order.create(orderData);
 
@@ -545,15 +548,16 @@ export const placeOrder = async (req, res) => {
 
 
     return res.status(201).json({
-      success: true,
-      message: paymentMethod === "cod"
-        ? "COD order created. Token payment required."
-        : "Order created. Proceed to payment.",
-      order,
-      razorpayOrder,
-      paymentRequired: true,
-      paymentType: paymentMethod === "cod" ? "cod_token" : "razorpay"
-    });
+  success: true,
+  message: paymentMethod === "cod"
+    ? "COD order created. Token payment required."
+    : "Order created. Proceed to payment.",
+  order,
+  razorpayOrder,  // will be `null` if not COD
+  paymentRequired: true,
+  paymentType: paymentMethod === "cod" ? "cod_token" : "razorpay"
+});
+
   } catch (err) {
     console.error("❌ Place Order Error:", err);
 
