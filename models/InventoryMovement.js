@@ -8,7 +8,7 @@ const inventoryMovementSchema = new mongoose.Schema({
     variantId: { type: mongoose.Schema.Types.ObjectId, ref: "Variant" },
     type: {
         type: String,
-        enum: ["add", "sale", "refund", "adjustment"],
+        enum: ["add", "sale", "refund", "adjustment", "duplicate_sale_attempt"],
         required: true
     },
     quantity: { type: Number, required: true },
