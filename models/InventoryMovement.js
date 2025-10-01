@@ -19,4 +19,9 @@ const inventoryMovementSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-export default  mongoose.model("InventoryMovement", inventoryMovementSchema);
+inventoryMovementSchema.index(
+    { product: 1, variantId: 1, orderId: 1, type: 1 },
+    { unique: true, partialFilterExpression: { type: "sale" } }
+);
+
+export default mongoose.model("InventoryMovement", inventoryMovementSchema);
