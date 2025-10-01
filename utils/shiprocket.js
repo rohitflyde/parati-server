@@ -29,21 +29,19 @@ export async function createShiprocketOrder(order) {
 
         // Get product names safely
         const orderItems = order.items.map(item => {
-            const product = item.product || {};
-            const shipping = product.shipping || {};
+            const product = (typeof item.product === "object") ? item.product : {};
 
             return {
-                name: product.name || product.title || "Product",
-                sku: product.sku?.toString().trim() || product._id?.toString() || `item_${Date.now()}`,
+                // ✅ First try snapshot saved in order, then fallback to populated product
+                name: item.productName || product.name || product.title || "Unknown Product",
+                sku: item.sku?.toString().trim() || product.sku?.toString().trim() || product._id?.toString() || `item_${Date.now()}`,
                 units: item.quantity,
                 selling_price: Number(item.price || product.basePrice || product.sp || 1),
                 hsn: product.hsn || 7113,
-
-                // ✅ Pull from product schema
-                length: shipping?.dimensions?.length || 5,
-                breadth: shipping?.dimensions?.width || 5,
-                height: shipping?.dimensions?.height || 5,
-                weight: shipping?.weight || 5
+                length: product.shipping?.dimensions?.length || 5,
+                breadth: product.shipping?.dimensions?.width || 5,
+                height: product.shipping?.dimensions?.height || 5,
+                weight: product.shipping?.weight || 5
             };
         });
 

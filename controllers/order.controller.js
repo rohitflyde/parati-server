@@ -432,12 +432,21 @@ export const placeOrder = async (req, res) => {
     // ✅ Base order data
     const orderData = {
       user: userId,
-      items: items.map(item => ({
-        product: item.product,
-        quantity: item.quantity,
-        price: item.price,
-        variant: item.variant,
-      })),
+      items: await Promise.all(
+        items.map(async (item) => {
+          const productDoc = await Product.findById(item.product).select("name sku basePrice");
+
+          return {
+            product: item.product,
+            productName: productDoc?.name || "Unknown Product",
+            sku: productDoc?.sku || item.product.toString(),
+            quantity: item.quantity,
+            price: item.price || productDoc?.basePrice || 0,
+            variant: item.variant,
+          };
+        })
+      ),
+
       shippingAddress: shippingAddressData,
       paymentMethod,
       total,
