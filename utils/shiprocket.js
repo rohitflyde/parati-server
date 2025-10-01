@@ -35,11 +35,11 @@ export async function createShiprocketOrder(order) {
 
             return {
                 // ✅ Always prefer snapshot saved in order
-                name: item.productName || "Unnamed Product",
+                name: item.productName || item.name || item.title || product.name || "Unnamed Product",
                 sku: item.sku || product.sku || product._id?.toString() || `sku_${Date.now()}`,
                 units: item.quantity,
                 selling_price: Number(item.price || 1), // fallback safe
-                hsn: item.hsn || product.hsn || "0000",
+                hsn: item.hsn || product.hsn || "7113",
                 length: item.dimensions?.length || product.shipping?.dimensions?.length || 5,
                 breadth: item.dimensions?.breadth || product.shipping?.dimensions?.width || 5,
                 height: item.dimensions?.height || product.shipping?.dimensions?.height || 5,
