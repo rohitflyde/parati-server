@@ -1,10 +1,6 @@
 import Product from "../models/Product.js";
 import InventoryMovement from "../models/InventoryMovement.js";
 
-
-
-
-
 export const reduceStock = async ({
     productId,
     variantId = null,
@@ -15,35 +11,24 @@ export const reduceStock = async ({
 }) => {
     const normalizedVariantId = variantId || null;
     try {
-        const existing = await InventoryMovement.findOne({
+        // Step 1: Try inserting log FIRST (unique index will block duplicates)
+        const log = new InventoryMovement({
             product: productId,
             variantId: normalizedVariantId,
+            type: "sale",
+            quantity,
+            balance: 0, // will update after stock deduction
             orderId,
-            type: "sale"
+            user: userId,
+            notes
         });
-
-
-        if (existing) {
-            // :white_tick: Already deducted – log duplicate attempt
-            await InventoryMovement.create({
-                product: productId,
-                variantId: normalizedVariantId,
-                type: "duplicate_sale_attempt",
-
-                quantity,
-                balance: existing.balance, // keep balance unchanged
-                orderId,
-                user: userId,
-                notes: `Duplicate stock deduction prevented. Original log: ${existing._id}. ${notes}`
-            });
-            return { success: false, message: "Duplicate deduction prevented" };
-        }
-        // :magnifying_glass_right: Step 2: Fetch product
+        await log.save(); // :x: if duplicate, throws E11000 before stock change
+        // Step 2: Deduct stock only if log was inserted successfully
         const product = await Product.findById(productId);
         if (!product) throw new Error("Product not found");
         let balance;
-        if (variantId) {
-            const variant = product.variants.id(variantId);
+        if (normalizedVariantId) {
+            const variant = product.variants.id(normalizedVariantId);
             if (!variant) throw new Error("Variant not found");
             if (variant.inventory < quantity) throw new Error("Insufficient stock");
             variant.inventory -= quantity;
@@ -54,20 +39,15 @@ export const reduceStock = async ({
             balance = product.stock;
         }
         await product.save();
-        // :magnifying_glass_right: Step 3: Create proper inventory log
-        await InventoryMovement.create({
-            product: productId,
-            variantId: normalizedVariantId,
-            type: "sale",
-
-            quantity,
-            balance,
-            orderId,
-            user: userId,
-            notes
-        });
+        // Step 3: Update balance in the movement log
+        log.balance = balance;
+        await log.save();
         return { success: true, message: "Stock reduced successfully" };
     } catch (err) {
+        if (err.code === 11000) {
+            // Mongo duplicate key error → duplicate prevented
+            return { success: false, message: "Duplicate deduction prevented by DB" };
+        }
         console.error(":x: reduceStock error:", err.message);
         throw err;
     }
