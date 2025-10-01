@@ -29,21 +29,24 @@ export async function createShiprocketOrder(order) {
 
         // Get product names safely
         const orderItems = order.items.map(item => {
-            const product = (typeof item.product === "object") ? item.product : {};
+            const product = typeof item.product === "object" ? item.product : {};
+
+            console.log("product: ", product)
 
             return {
-                // ✅ First try snapshot saved in order, then fallback to populated product
-                name: item.productName || product.name || product.title || "Unknown Product",
-                sku: item.sku?.toString().trim() || product.sku?.toString().trim() || product._id?.toString() || `item_${Date.now()}`,
+                // ✅ Always prefer snapshot saved in order
+                name: item.productName || "Unnamed Product",
+                sku: item.sku || product.sku || product._id?.toString() || `sku_${Date.now()}`,
                 units: item.quantity,
-                selling_price: Number(item.price || product.basePrice || product.sp || 1),
-                hsn: product.hsn || 7113,
-                length: product.shipping?.dimensions?.length || 5,
-                breadth: product.shipping?.dimensions?.width || 5,
-                height: product.shipping?.dimensions?.height || 5,
-                weight: product.shipping?.weight || 5
+                selling_price: Number(item.price || 1), // fallback safe
+                hsn: item.hsn || product.hsn || "0000",
+                length: item.dimensions?.length || product.shipping?.dimensions?.length || 5,
+                breadth: item.dimensions?.breadth || product.shipping?.dimensions?.width || 5,
+                height: item.dimensions?.height || product.shipping?.dimensions?.height || 5,
+                weight: item.weight || product.shipping?.weight || 0.5,
             };
         });
+
 
         // Ensure all required address fields are present
         const shippingAddress = order.shippingAddress || {};

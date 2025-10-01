@@ -739,6 +739,15 @@ export const verifyCodTokenPayment = async (req, res) => {
 
     // ✅ FIX: Use existing Shiprocket logic
     try {
+
+      console.log("📦 Preparing Shiprocket order with items:", order.items.map(i => ({
+        productName: i.productName,
+        sku: i.sku,
+        qty: i.quantity,
+        price: i.price
+      })));
+
+
       const shiprocketRes = await createShiprocketOrder(order);
       if (shiprocketRes?.order_id) {
         await Order.findByIdAndUpdate(order._id, {
@@ -982,6 +991,14 @@ export const razorpayWebhook = async (req, res) => {
 
       // Push to Shiprocket (both cases)
       try {
+
+        console.log("📦 Preparing Shiprocket order with items:", order.items.map(i => ({
+          productName: i.productName,
+          sku: i.sku,
+          qty: i.quantity,
+          price: i.price
+        })));
+
         const shiprocketRes = await createShiprocketOrder(updatedOrder);
         if (shiprocketRes?.order_id) {
           await Order.findByIdAndUpdate(updatedOrder._id, {
