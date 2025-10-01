@@ -1188,6 +1188,8 @@ export const verifyCodTokenPayment = async (req, res) => {
 
 
 export const razorpayWebhook = async (req, res) => {
+
+
   try {
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
     const signature = req.headers["x-razorpay-signature"];
@@ -1239,6 +1241,26 @@ export const razorpayWebhook = async (req, res) => {
         });
         return res.json({ status: "ok" });
       }
+
+      if (
+        order.isPaid ||
+        order.paymentStatus === "completed" ||
+        order.tokenPaymentStatus === "paid" ||
+        order.status === "confirmed"
+      ) {
+        console.log(":warning: Order already processed, skipping duplicate webhook:", order._id);
+        await createLog({
+          user: order.user?._id,
+          source: "WEBHOOK",
+          action: "DUPLICATE_WEBHOOK",
+          entity: "Order",
+          entityId: order._id,
+          status: "INFO",
+          message: "Webhook retried but order already processed",
+        });
+        return res.json({ status: "duplicate" });
+      }
+
       // :white_tick: Enrich items with snapshot fields for Shiprocket
       order.items = order.items.map(i => ({
         ...i.toObject(),
@@ -1294,6 +1316,7 @@ export const razorpayWebhook = async (req, res) => {
         // } else {
         //   product.stock -= item.quantity;
         // }
+
 
 
         try {
