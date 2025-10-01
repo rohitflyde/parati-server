@@ -1,7 +1,8 @@
 import Product from "../models/Product.js";
 import InventoryMovement from "../models/InventoryMovement.js";
 
-const normalizedVariantId = variantId || null;
+
+
 
 
 export const reduceStock = async ({
@@ -12,14 +13,15 @@ export const reduceStock = async ({
     userId,
     notes = ""
 }) => {
+    const normalizedVariantId = variantId || null;
     try {
-        // :magnifying_glass_right: Step 1: Check if already deducted for this order + product + variant
         const existing = await InventoryMovement.findOne({
             product: productId,
             variantId: normalizedVariantId,
             orderId,
             type: "sale"
         });
+
 
         if (existing) {
             // :white_tick: Already deducted – log duplicate attempt
@@ -53,19 +55,20 @@ export const reduceStock = async ({
         }
         await product.save();
         // :magnifying_glass_right: Step 3: Create proper inventory log
-        product: productId,
+        await InventoryMovement.create({
+            product: productId,
             variantId: normalizedVariantId,
-                type: "sale",
+            type: "sale",
 
-                    quantity,
-                    balance,
-                    orderId,
-                    user: userId,
-                        notes
-    });
-    return { success: true, message: "Stock reduced successfully" };
-} catch (err) {
-    console.error(":x: reduceStock error:", err.message);
-    throw err;
-}
+            quantity,
+            balance,
+            orderId,
+            user: userId,
+            notes
+        });
+        return { success: true, message: "Stock reduced successfully" };
+    } catch (err) {
+        console.error(":x: reduceStock error:", err.message);
+        throw err;
+    }
 };
