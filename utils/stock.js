@@ -1,6 +1,9 @@
 import Product from "../models/Product.js";
 import InventoryMovement from "../models/InventoryMovement.js";
 
+const normalizedVariantId = variantId || null;
+
+
 export const reduceStock = async ({
     productId,
     variantId = null,
@@ -13,16 +16,18 @@ export const reduceStock = async ({
         // :magnifying_glass_right: Step 1: Check if already deducted for this order + product + variant
         const existing = await InventoryMovement.findOne({
             product: productId,
-            variantId: variantId || null,
+            variantId: normalizedVariantId,
             orderId,
             type: "sale"
         });
+
         if (existing) {
             // :white_tick: Already deducted – log duplicate attempt
             await InventoryMovement.create({
                 product: productId,
-                variantId,
+                variantId: normalizedVariantId,
                 type: "duplicate_sale_attempt",
+
                 quantity,
                 balance: existing.balance, // keep balance unchanged
                 orderId,
@@ -48,19 +53,19 @@ export const reduceStock = async ({
         }
         await product.save();
         // :magnifying_glass_right: Step 3: Create proper inventory log
-        await InventoryMovement.create({
-            product: productId,
-            variantId,
-            type: "sale",
-            quantity,
-            balance,
-            orderId,
-            user: userId,
-            notes
-        });
-        return { success: true, message: "Stock reduced successfully" };
-    } catch (err) {
-        console.error(":x: reduceStock error:", err.message);
-        throw err;
-    }
+        product: productId,
+            variantId: normalizedVariantId,
+                type: "sale",
+
+                    quantity,
+                    balance,
+                    orderId,
+                    user: userId,
+                        notes
+    });
+    return { success: true, message: "Stock reduced successfully" };
+} catch (err) {
+    console.error(":x: reduceStock error:", err.message);
+    throw err;
+}
 };
