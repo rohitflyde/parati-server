@@ -621,23 +621,7 @@ export const updateProduct = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Track stock movement if inventoryType is simple
-    if (inventoryType === "simple" && stock !== undefined) {
-      const prevStock = existingProduct.stock || 0;
-      const newStock = stock;
-      const diff = newStock - prevStock;
 
-      if (diff !== 0) {
-        await InventoryMovement.create({
-          product: existingProduct._id,
-          type: diff > 0 ? "add" : "adjustment",
-          quantity: Math.abs(diff),
-          balance: newStock, // new running balance
-          user: req.user?._id,
-          notes: diff > 0 ? "Stock increased via product update" : "Stock reduced via product update"
-        });
-      }
-    }
 
 
     const {
@@ -673,6 +657,27 @@ export const updateProduct = async (req, res) => {
       attributes,
       specifications,
     } = req.body;
+
+
+
+    // Track stock movement if inventoryType is simple
+    if (inventoryType === "simple" && stock !== undefined) {
+      const prevStock = existingProduct.stock || 0;
+      const newStock = stock;
+      const diff = newStock - prevStock;
+
+      if (diff !== 0) {
+        await InventoryMovement.create({
+          product: existingProduct._id,
+          type: diff > 0 ? "add" : "adjustment",
+          quantity: Math.abs(diff),
+          balance: newStock, // new running balance
+          user: req.user?._id,
+          notes: diff > 0 ? "Stock increased via product update" : "Stock reduced via product update"
+        });
+      }
+    }
+
 
     console.log('Update request body:', req.body);
 
