@@ -198,36 +198,36 @@ export const verifyRazorpayPayment = async (req, res) => {
     }
 
     // ✅ Final stock validation before payment confirmation
-    const { stockErrors } = await validateStockAvailability(order.items);
-    if (stockErrors.length > 0) {
-      // Refund the payment if stock is not available
-      try {
-        await razorpay.payments.refund(razorpay_payment_id, {
-          amount: Math.round(order.total * 100)
-        });
-      } catch (refundError) {
-        console.error("❌ Refund failed:", refundError);
-      }
+    // const { stockErrors } = await validateStockAvailability(order.items);
+    // if (stockErrors.length > 0) {
+    //   // Refund the payment if stock is not available
+    //   try {
+    //     await razorpay.payments.refund(razorpay_payment_id, {
+    //       amount: Math.round(order.total * 100)
+    //     });
+    //   } catch (refundError) {
+    //     console.error("❌ Refund failed:", refundError);
+    //   }
 
-      await createLog({
-        user: order.user || null,
-        source: "API",
-        action: "VERIFY_RAZORPAY_PAYMENT",
-        entity: "Order",
-        entityId: orderId,
-        status: "FAILURE",
-        message: "Stock unavailable. Payment refunded.",
-        details: { stockErrors },
-        req,
-      });
+    //   await createLog({
+    //     user: order.user || null,
+    //     source: "API",
+    //     action: "VERIFY_RAZORPAY_PAYMENT",
+    //     entity: "Order",
+    //     entityId: orderId,
+    //     status: "FAILURE",
+    //     message: "Stock unavailable. Payment refunded.",
+    //     details: { stockErrors },
+    //     req,
+    //   });
 
 
-      return res.status(400).json({
-        error: true,
-        message: "Stock unavailable. Payment refunded.",
-        details: stockErrors
-      });
-    }
+    //   return res.status(400).json({
+    //     error: true,
+    //     message: "Stock unavailable. Payment refunded.",
+    //     details: stockErrors
+    //   });
+    // }
 
     // Update order status
     const updatedOrder = await Order.findByIdAndUpdate(
@@ -245,46 +245,46 @@ export const verifyRazorpayPayment = async (req, res) => {
     ).populate("items.product").populate("user", "name email phone");
 
     // ✅ Deduct stock after successful payment
-    for (const item of updatedOrder.items) {
-      const product = await Product.findById(item.product);
-      if (!product) continue;
+    // for (const item of updatedOrder.items) {
+    //   const product = await Product.findById(item.product);
+    //   if (!product) continue;
 
-      // if (item.variant && item.variant !== "default") {
-      //   const variant = product.variants.id(item.variant);
-      //   if (variant) {
-      //     variant.inventory -= item.quantity;
-      //     await product.save();
-      //   }
-      // } else {
-      //   product.stock -= item.quantity;
-      //   await product.save();
-      // }
+    //   // if (item.variant && item.variant !== "default") {
+    //   //   const variant = product.variants.id(item.variant);
+    //   //   if (variant) {
+    //   //     variant.inventory -= item.quantity;
+    //   //     await product.save();
+    //   //   }
+    //   // } else {
+    //   //   product.stock -= item.quantity;
+    //   //   await product.save();
+    //   // }
 
 
-      try {
-        await reduceStock({
-          productId: item.product,
-          variantId: item.variant !== "default" ? item.variant : null,
-          quantity: item.quantity,
-          orderId: updatedOrder._id,
-          userId: updatedOrder.user?._id,
-          notes: "Stock deducted after prepaid order confirmation"
-        });
-      } catch (error) {
-        console.log(error)
-        await createLog({
-          source: "SYSTEM",
-          action: "INVENTORY_DEDUCT",
-          entity: "Inventory",
-          entityId: orderId,
-          status: "FAILURE",
-          message: "Error in stock deduct",
-          details: { error },
-          req,
-        });
-      }
+    //   // try {
+    //   //   await reduceStock({
+    //   //     productId: item.product,
+    //   //     variantId: item.variant !== "default" ? item.variant : null,
+    //   //     quantity: item.quantity,
+    //   //     orderId: updatedOrder._id,
+    //   //     userId: updatedOrder.user?._id,
+    //   //     notes: "Stock deducted after prepaid order confirmation"
+    //   //   });
+    //   // } catch (error) {
+    //   //   console.log(error)
+    //   //   await createLog({
+    //   //     source: "SYSTEM",
+    //   //     action: "INVENTORY_DEDUCT",
+    //   //     entity: "Inventory",
+    //   //     entityId: orderId,
+    //   //     status: "FAILURE",
+    //   //     message: "Error in stock deduct",
+    //   //     details: { error },
+    //   //     req,
+    //   //   });
+    //   // }
 
-    }
+    // }
 
     // 🔹 Log successful verification
     await createLog({
@@ -306,45 +306,45 @@ export const verifyRazorpayPayment = async (req, res) => {
 
 
     // ✅ Push to Shiprocket
-    try {
-      const shiprocketRes = await createShiprocketOrder(updatedOrder);
-      if (shiprocketRes && shiprocketRes.order_id) {
-        await Order.findByIdAndUpdate(updatedOrder._id, {
-          shiprocketOrderId: shiprocketRes.order_id,
-          awbCode: shiprocketRes.awb_code || null,
-          courierName: shiprocketRes.courier_name || null,
-          trackingUrl: shiprocketRes.tracking_url || null
-        });
+    // try {
+    //   const shiprocketRes = await createShiprocketOrder(updatedOrder);
+    //   if (shiprocketRes && shiprocketRes.order_id) {
+    //     await Order.findByIdAndUpdate(updatedOrder._id, {
+    //       shiprocketOrderId: shiprocketRes.order_id,
+    //       awbCode: shiprocketRes.awb_code || null,
+    //       courierName: shiprocketRes.courier_name || null,
+    //       trackingUrl: shiprocketRes.tracking_url || null
+    //     });
 
 
-        // 🔹 Log shiprocket success
-        await createLog({
-          user: updatedOrder.user?._id || null,
-          source: "INTEGRATION",
-          action: "PUSH_TO_SHIPROCKET",
-          entity: "Order",
-          entityId: updatedOrder._id,
-          status: "SUCCESS",
-          message: "Prepaid order pushed to Shiprocket",
-          details: shiprocketRes,
-        });
+    //     // 🔹 Log shiprocket success
+    //     await createLog({
+    //       user: updatedOrder.user?._id || null,
+    //       source: "INTEGRATION",
+    //       action: "PUSH_TO_SHIPROCKET",
+    //       entity: "Order",
+    //       entityId: updatedOrder._id,
+    //       status: "SUCCESS",
+    //       message: "Prepaid order pushed to Shiprocket",
+    //       details: shiprocketRes,
+    //     });
 
-        console.log("✅ Prepaid order pushed to Shiprocket:", shiprocketRes.order_id);
-      }
-    } catch (err) {
-      console.error("❌ Failed to push prepaid order to Shiprocket:", err.message);
-      // 🔹 Log shiprocket failure
-      await createLog({
-        user: updatedOrder.user?._id || null,
-        source: "INTEGRATION",
-        action: "PUSH_TO_SHIPROCKET",
-        entity: "Order",
-        entityId: updatedOrder._id,
-        status: "FAILURE",
-        message: "Failed to push prepaid order to Shiprocket",
-        details: { error: err.message },
-      });
-    }
+    //     console.log("✅ Prepaid order pushed to Shiprocket:", shiprocketRes.order_id);
+    //   }
+    // } catch (err) {
+    //   console.error("❌ Failed to push prepaid order to Shiprocket:", err.message);
+    //   // 🔹 Log shiprocket failure
+    //   await createLog({
+    //     user: updatedOrder.user?._id || null,
+    //     source: "INTEGRATION",
+    //     action: "PUSH_TO_SHIPROCKET",
+    //     entity: "Order",
+    //     entityId: updatedOrder._id,
+    //     status: "FAILURE",
+    //     message: "Failed to push prepaid order to Shiprocket",
+    //     details: { error: err.message },
+    //   });
+    // }
 
     res.status(200).json({
       success: true,
