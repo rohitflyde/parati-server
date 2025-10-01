@@ -21,6 +21,7 @@ import {
 
 } from "../utils/shiprocket.js";
 import { createLog } from "../utils/log.js";
+import items from "razorpay/dist/types/items.js";
 
 
 
@@ -809,18 +810,340 @@ export const verifyCodTokenPayment = async (req, res) => {
 
 // ✅ Razorpay Webhook
 
+// export const razorpayWebhook = async (req, res) => {
+//   try {
+//     const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+//     const signature = req.headers["x-razorpay-signature"];
+//     const body = req.body;
+
+//     // Verify webhook signature
+//     const expectedSignature = crypto
+//       .createHmac("sha256", secret)
+//       .update(JSON.stringify(body))
+//       .digest("hex");
+
+//     if (expectedSignature !== signature) {
+//       console.error(":x: Invalid webhook signature");
+//       await createLog({
+//         source: "WEBHOOK",
+//         action: "RAZORPAY_WEBHOOK",
+//         entity: "Webhook",
+//         status: "FAILURE",
+//         message: "Invalid webhook signature",
+//         details: { signature, body },
+//       });
+//       return res.status(400).json({ error: true, message: "Invalid webhook signature" });
+//     }
+
+//     const event = body.event;
+//     console.log(`:bell: Webhook Received: ${event}`, body.payload);
+
+//     // Handle both payment.captured and order.paid events
+//     if (event === "payment.captured" || event === "order.paid") {
+//       let payment, orderId;
+
+//       if (event === "payment.captured") {
+//         payment = body.payload.payment.entity;
+//         orderId = payment.order_id;
+//         console.log(`:moneybag: Payment captured amount: ${payment.amount}`);
+//       } else if (event === "order.paid") {
+//         payment = body.payload.payment.entity;
+//         orderId = body.payload.order.entity.id;
+//         console.log(`:moneybag: Order paid amount: ${payment.amount}`);
+//       }
+
+//       // Log payment capture received
+//       await createLog({
+//         source: "WEBHOOK",
+//         action: event === "payment.captured" ? "PAYMENT_CAPTURED" : "ORDER_PAID",
+//         entity: "Order",
+//         status: "INFO",
+//         message: `Razorpay ${event} webhook received`,
+//         details: { payment, orderId, event },
+//       });
+
+//       // Find order by either razorpayOrderId OR razorpayTokenOrderId
+//       const order = await Order.findOne({
+//         $or: [
+//           { razorpayOrderId: orderId },
+//           { razorpayTokenOrderId: orderId }
+//         ]
+//       })
+//         .populate("items.product")
+//         .populate("user", "name email phone");
+
+
+//       // ✅ FIX: Use orderId instead of razorpayOrderId
+//       if (order && !order.razorpayTokenOrderId && order.paymentMethod === "cod") {
+//         await Order.findByIdAndUpdate(order._id, {
+//           razorpayTokenOrderId: orderId // ✅ Use orderId which contains the Razorpay order ID
+//         });
+//         console.log(`:wrench: Auto-fixed missing razorpayTokenOrderId for order: ${order._id}`);
+//       }
+
+//       if (!order) {
+//         console.warn(":warning: Order not found for Razorpay order_id:", orderId);
+//         await createLog({
+//           source: "WEBHOOK",
+//           action: event === "payment.captured" ? "PAYMENT_CAPTURED" : "ORDER_PAID",
+//           entity: "Order",
+//           status: "FAILURE",
+//           message: "Order not found for payment",
+//           details: { razorpay_order_id: orderId, event },
+//         });
+//         return res.json({ status: "ok" });
+//       }
+
+//       // Check if already processed
+//       if (order.paymentMethod === "cod" && order.tokenPaymentStatus === "paid") {
+//         console.log(":information_source: COD token already paid:", order._id);
+//         await createLog({
+//           source: "WEBHOOK",
+//           action: event === "payment.captured" ? "PAYMENT_CAPTURED" : "ORDER_PAID",
+//           entity: "Order",
+//           entityId: order._id,
+//           status: "INFO",
+//           message: "Payment already processed. Skipping duplicate webhook",
+//         });
+//         return res.json({ status: "ok" });
+//       }
+
+//       if (order.paymentMethod === "razorpay" && order.paymentStatus === "completed") {
+//         console.log(":information_source: Order already paid:", order._id);
+//         return res.json({ status: "ok" });
+//       }
+
+//       // Determine payment type
+//       const isCodTokenPayment =
+//         order.paymentMethod === "cod" &&
+//         orderId === order.razorpayTokenOrderId;
+
+//       const isFullPayment =
+//         order.paymentMethod === "razorpay" &&
+//         orderId === order.razorpayOrderId;
+
+//       console.log(`:moneybag: Payment Details:`, {
+//         orderId: order._id,
+//         paymentMethod: order.paymentMethod,
+//         isCodTokenPayment,
+//         isFullPayment,
+//         paymentAmount: payment.amount,
+//         expectedTokenAmount: order.tokenAmount * 100,
+//         event
+//       });
+
+//       let updateData = {
+//         razorpayPaymentId: payment.id,
+//         paidAt: new Date(),
+//         transactionDetails: payment
+//       };
+
+//       if (isCodTokenPayment) {
+//         // COD Token Payment
+//         updateData.tokenPaymentStatus = "paid";
+//         updateData.status = "confirmed";
+//         updateData.razorpayTokenPaymentId = payment.id;
+
+//         await createLog({
+//           user: order.user?._id || null,
+//           source: "WEBHOOK",
+//           action: "COD_TOKEN_PAYMENT",
+//           entity: "Order",
+//           entityId: order._id,
+//           status: "SUCCESS",
+//           message: "COD token payment successful via webhook",
+//           details: { payment, event },
+//         });
+//         console.log(`:white_tick: COD Token paid for order: ${order._id}`);
+//       } else if (isFullPayment) {
+//         // Full Prepaid Payment
+//         updateData.paymentStatus = "completed";
+//         updateData.isPaid = true;
+//         updateData.status = "confirmed";
+
+//         console.log(`:white_tick: Full payment received for order: ${order._id}`);
+//         await createLog({
+//           user: order.user?._id || null,
+//           source: "WEBHOOK",
+//           action: "FULL_PAYMENT",
+//           entity: "Order",
+//           entityId: order._id,
+//           status: "SUCCESS",
+//           message: "Full prepaid payment successful via webhook",
+//           details: { payment, event },
+//         });
+//       }
+
+//       // Update order
+//       const updatedOrder = await Order.findByIdAndUpdate(order._id, updateData, { new: true }).populate("items.products");
+
+//       // Deduct stock (both cases)
+//       for (const item of updatedOrder.items) {
+//         const product = await Product.findById(item.product);
+//         if (product) {
+//           if (product.stock < item.quantity) {
+//             console.error(`:x: Insufficient stock for ${product.name}`);
+//             continue;
+//           }
+//           product.stock -= item.quantity;
+//           await product.save();
+//         }
+//       }
+
+//       // Push to Shiprocket (both cases)
+//       try {
+
+//         console.log("📦 Preparing Shiprocket order with items:", order.items.map(i => ({
+//           productName: i.productName,
+//           sku: i.sku,
+//           qty: i.quantity,
+//           price: i.price
+//         })));
+
+//         const shiprocketRes = await createShiprocketOrder(updatedOrder);
+//         if (shiprocketRes?.order_id) {
+//           await Order.findByIdAndUpdate(updatedOrder._id, {
+//             shiprocketOrderId: shiprocketRes.order_id,
+//             awbCode: shiprocketRes.awb_code,
+//             courierName: shiprocketRes.courier_name,
+//             trackingUrl: shiprocketRes.tracking_url
+//           });
+//           console.log(":white_tick: Order pushed to Shiprocket:", shiprocketRes.order_id);
+//           await createLog({
+//             user: updatedOrder.user?._id || null,
+//             source: "INTEGRATION",
+//             action: "SHIPROCKET_PUSH",
+//             entity: "Order",
+//             entityId: updatedOrder._id,
+//             status: "SUCCESS",
+//             message: "Order pushed to Shiprocket via webhook",
+//             details: shiprocketRes,
+//           });
+//         }
+//       } catch (shiprocketErr) {
+//         console.error(":x: Shiprocket error:", shiprocketErr.message);
+//         await createLog({
+//           user: updatedOrder.user?._id || null,
+//           source: "INTEGRATION",
+//           action: "SHIPROCKET_PUSH",
+//           entity: "Order",
+//           entityId: updatedOrder._id,
+//           status: "FAILURE",
+//           message: "Failed to push order to Shiprocket",
+//           details: { error: shiprocketErr.message },
+//         });
+//       }
+
+//       // Send confirmation email/SMS
+//       try {
+//         if (updatedOrder.user?.email) {
+//           const emailTemplate = generateOrderEmail(updatedOrder);
+//           await sendEmail({
+//             to: updatedOrder.user.email,
+//             subject: `Order Confirmation - ${updatedOrder._id.toString().slice(-6).toUpperCase()}`,
+//             html: emailTemplate
+//           });
+//         }
+//         if (updatedOrder.shippingAddress?.phone) {
+//           const smsMessage = `Hi ${updatedOrder?.user?.name || "Customer"}, your order ${updatedOrder._id
+//             .toString()
+//             .slice(-6)
+//             .toUpperCase()} has been placed successfully on ${new Date().toLocaleDateString("en-IN")} via ExPro! We'll notify you once it's shipped. Thanks for shopping with us.`;
+//           await SendSMS({ phone: updatedOrder.shippingAddress.phone, message: smsMessage });
+//         }
+
+//         await createLog({
+//           user: updatedOrder.user?._id || null,
+//           source: "SERVICE",
+//           action: "ORDER_NOTIFICATION",
+//           entity: "Order",
+//           entityId: updatedOrder._id,
+//           status: "SUCCESS",
+//           message: "Email/SMS notifications sent",
+//         });
+//       } catch (notificationErr) {
+//         console.error(":x: Notification error:", notificationErr);
+//         await createLog({
+//           user: updatedOrder.user?._id || null,
+//           source: "SERVICE",
+//           action: "ORDER_NOTIFICATION",
+//           entity: "Order",
+//           entityId: updatedOrder._id,
+//           status: "FAILURE",
+//           message: "Failed to send notifications",
+//           details: { error: notificationErr.message },
+//         });
+//       }
+//     }
+
+//     // Handle payment failed event for both payment.failed and order.paid could have failed scenarios
+//     if (event === "payment.failed") {
+//       const payment = body.payload.payment.entity;
+//       const orderId = payment.order_id;
+
+//       const order = await Order.findOne({
+//         $or: [
+//           { razorpayOrderId: orderId },
+//           { razorpayTokenOrderId: orderId }
+//         ]
+//       });
+
+//       if (order) {
+//         if (orderId === order.razorpayTokenOrderId) {
+//           // COD token payment failed
+//           await Order.findByIdAndUpdate(order._id, {
+//             tokenPaymentStatus: "failed",
+//             status: "failed"
+//           });
+//         } else {
+//           // Full payment failed
+//           await Order.findByIdAndUpdate(order._id, {
+//             paymentStatus: "failed",
+//             status: "failed"
+//           });
+//         }
+//         console.log(`:x: Payment failed for order: ${order._id}`);
+//         await createLog({
+//           user: order.user?._id || null,
+//           source: "WEBHOOK",
+//           action: "PAYMENT_FAILED",
+//           entity: "Order",
+//           entityId: order._id,
+//           status: "FAILURE",
+//           message: "Razorpay payment failed",
+//           details: payment,
+//         });
+//       }
+//     }
+
+//     res.json({ status: "ok" });
+//   } catch (err) {
+//     console.error(":x: Webhook processing error:", err);
+//     await createLog({
+//       source: "WEBHOOK",
+//       action: "RAZORPAY_WEBHOOK",
+//       entity: "Webhook",
+//       status: "FAILURE",
+//       message: "Webhook processing failed",
+//       details: { error: err.message },
+//     });
+//     res.status(500).json({ error: true, message: "Webhook processing failed" });
+//   }
+// };
+
+
+
+
 export const razorpayWebhook = async (req, res) => {
   try {
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
     const signature = req.headers["x-razorpay-signature"];
     const body = req.body;
-
-    // Verify webhook signature
+    // :closed_lock_with_key: Verify webhook signature
     const expectedSignature = crypto
       .createHmac("sha256", secret)
       .update(JSON.stringify(body))
       .digest("hex");
-
     if (expectedSignature !== signature) {
       console.error(":x: Invalid webhook signature");
       await createLog({
@@ -833,291 +1156,137 @@ export const razorpayWebhook = async (req, res) => {
       });
       return res.status(400).json({ error: true, message: "Invalid webhook signature" });
     }
-
     const event = body.event;
-    console.log(`:bell: Webhook Received: ${event}`, body.payload);
-
-    // Handle both payment.captured and order.paid events
+    console.log(`:bell: Webhook Received: ${event}`);
     if (event === "payment.captured" || event === "order.paid") {
-      let payment, orderId;
-
+      let payment, rzpOrderId;
       if (event === "payment.captured") {
         payment = body.payload.payment.entity;
-        orderId = payment.order_id;
-        console.log(`:moneybag: Payment captured amount: ${payment.amount}`);
-      } else if (event === "order.paid") {
+        rzpOrderId = payment.order_id;
+      } else {
         payment = body.payload.payment.entity;
-        orderId = body.payload.order.entity.id;
-        console.log(`:moneybag: Order paid amount: ${payment.amount}`);
+        rzpOrderId = body.payload.order.entity.id;
       }
-
-      // Log payment capture received
-      await createLog({
-        source: "WEBHOOK",
-        action: event === "payment.captured" ? "PAYMENT_CAPTURED" : "ORDER_PAID",
-        entity: "Order",
-        status: "INFO",
-        message: `Razorpay ${event} webhook received`,
-        details: { payment, orderId, event },
-      });
-
-      // Find order by either razorpayOrderId OR razorpayTokenOrderId
-      const order = await Order.findOne({
+      // :magnifying_glass_right: Find our DB order by Razorpay orderId
+      let order = await Order.findOne({
         $or: [
-          { razorpayOrderId: orderId },
-          { razorpayTokenOrderId: orderId }
+          { razorpayOrderId: rzpOrderId },
+          { razorpayTokenOrderId: rzpOrderId }
         ]
-      })
-        .populate("items.product")
-        .populate("user", "name email phone");
-
-
-      // ✅ FIX: Use orderId instead of razorpayOrderId
-      if (order && !order.razorpayTokenOrderId && order.paymentMethod === "cod") {
-        await Order.findByIdAndUpdate(order._id, {
-          razorpayTokenOrderId: orderId // ✅ Use orderId which contains the Razorpay order ID
-        });
-        console.log(`:wrench: Auto-fixed missing razorpayTokenOrderId for order: ${order._id}`);
-      }
-
+      }).populate("items.product").populate("user", "name email phone");
       if (!order) {
-        console.warn(":warning: Order not found for Razorpay order_id:", orderId);
+        console.warn(":warning: No matching order found for Razorpay order:", rzpOrderId);
         await createLog({
           source: "WEBHOOK",
-          action: event === "payment.captured" ? "PAYMENT_CAPTURED" : "ORDER_PAID",
+          action: "PAYMENT_CAPTURED",
           entity: "Order",
           status: "FAILURE",
-          message: "Order not found for payment",
-          details: { razorpay_order_id: orderId, event },
+          message: "No order found for Razorpay order",
+          details: { rzpOrderId, event },
         });
         return res.json({ status: "ok" });
       }
-
-      // Check if already processed
-      if (order.paymentMethod === "cod" && order.tokenPaymentStatus === "paid") {
-        console.log(":information_source: COD token already paid:", order._id);
+      // :white_tick: Enrich items with snapshot fields for Shiprocket
+      order.items = order.items.map(i => ({
+        ...i.toObject(),
+        productName: i.productName || i.product?.name || "Unknown Product",
+        sku: i.sku || i.product?.sku || i.product?._id?.toString(),
+        price: i.price || i.product?.basePrice || 0,
+      }));
+      // :white_tick: Stock validation
+      const { stockErrors } = await validateStockAvailability(order.items);
+      if (stockErrors.length > 0) {
+        console.error(":x: Stock validation failed:", stockErrors);
         await createLog({
+          user: order.user?._id,
           source: "WEBHOOK",
-          action: event === "payment.captured" ? "PAYMENT_CAPTURED" : "ORDER_PAID",
+          action: "STOCK_VALIDATION",
           entity: "Order",
           entityId: order._id,
-          status: "INFO",
-          message: "Payment already processed. Skipping duplicate webhook",
+          status: "FAILURE",
+          message: "Stock unavailable during webhook",
+          details: { stockErrors },
         });
-        return res.json({ status: "ok" });
+        return res.status(400).json({
+          error: true,
+          message: "Stock unavailable",
+          details: stockErrors
+        });
       }
-
-      if (order.paymentMethod === "razorpay" && order.paymentStatus === "completed") {
-        console.log(":information_source: Order already paid:", order._id);
-        return res.json({ status: "ok" });
-      }
-
-      // Determine payment type
-      const isCodTokenPayment =
-        order.paymentMethod === "cod" &&
-        orderId === order.razorpayTokenOrderId;
-
-      const isFullPayment =
-        order.paymentMethod === "razorpay" &&
-        orderId === order.razorpayOrderId;
-
-      console.log(`:moneybag: Payment Details:`, {
-        orderId: order._id,
-        paymentMethod: order.paymentMethod,
-        isCodTokenPayment,
-        isFullPayment,
-        paymentAmount: payment.amount,
-        expectedTokenAmount: order.tokenAmount * 100,
-        event
-      });
-
-      let updateData = {
+      // :white_tick: Update payment details
+      const updateData = {
         razorpayPaymentId: payment.id,
         paidAt: new Date(),
-        transactionDetails: payment
+        transactionDetails: payment,
+        status: "confirmed",
       };
-
-      if (isCodTokenPayment) {
-        // COD Token Payment
-        updateData.tokenPaymentStatus = "paid";
-        updateData.status = "confirmed";
-        updateData.razorpayTokenPaymentId = payment.id;
-
-        await createLog({
-          user: order.user?._id || null,
-          source: "WEBHOOK",
-          action: "COD_TOKEN_PAYMENT",
-          entity: "Order",
-          entityId: order._id,
-          status: "SUCCESS",
-          message: "COD token payment successful via webhook",
-          details: { payment, event },
-        });
-        console.log(`:white_tick: COD Token paid for order: ${order._id}`);
-      } else if (isFullPayment) {
-        // Full Prepaid Payment
+      if (order.paymentMethod === "razorpay") {
         updateData.paymentStatus = "completed";
         updateData.isPaid = true;
-        updateData.status = "confirmed";
-
-        console.log(`:white_tick: Full payment received for order: ${order._id}`);
-        await createLog({
-          user: order.user?._id || null,
-          source: "WEBHOOK",
-          action: "FULL_PAYMENT",
-          entity: "Order",
-          entityId: order._id,
-          status: "SUCCESS",
-          message: "Full prepaid payment successful via webhook",
-          details: { payment, event },
-        });
       }
-
-      // Update order
-      const updatedOrder = await Order.findByIdAndUpdate(order._id, updateData, { new: true });
-
-      // Deduct stock (both cases)
-      for (const item of updatedOrder.items) {
+      if (order.paymentMethod === "cod") {
+        updateData.tokenPaymentStatus = "paid";
+      }
+      const updatedOrder = await Order.findByIdAndUpdate(order._id, updateData, { new: true })
+        .populate("user", "name email phone");
+      // :white_tick: Deduct stock
+      for (const item of order.items) {
         const product = await Product.findById(item.product);
-        if (product) {
-          if (product.stock < item.quantity) {
-            console.error(`:x: Insufficient stock for ${product.name}`);
-            continue;
+        if (!product) continue;
+        if (item.variant && item.variant !== "default") {
+          const variant = product.variants.id(item.variant);
+          if (variant) {
+            variant.inventory -= item.quantity;
           }
+        } else {
           product.stock -= item.quantity;
-          await product.save();
         }
+        await product.save();
       }
-
-      // Push to Shiprocket (both cases)
+      // :white_tick: Push to Shiprocket
       try {
-
-        console.log("📦 Preparing Shiprocket order with items:", order.items.map(i => ({
+        console.log(":package: Preparing Shiprocket order with items:", order.items.map(i => ({
           productName: i.productName,
           sku: i.sku,
           qty: i.quantity,
           price: i.price
         })));
-
-        const shiprocketRes = await createShiprocketOrder(updatedOrder);
+        const shiprocketRes = await createShiprocketOrder(order);
         if (shiprocketRes?.order_id) {
-          await Order.findByIdAndUpdate(updatedOrder._id, {
+          await Order.findByIdAndUpdate(order._id, {
             shiprocketOrderId: shiprocketRes.order_id,
             awbCode: shiprocketRes.awb_code,
             courierName: shiprocketRes.courier_name,
             trackingUrl: shiprocketRes.tracking_url
           });
-          console.log(":white_tick: Order pushed to Shiprocket:", shiprocketRes.order_id);
           await createLog({
-            user: updatedOrder.user?._id || null,
+            user: order.user?._id,
             source: "INTEGRATION",
             action: "SHIPROCKET_PUSH",
             entity: "Order",
-            entityId: updatedOrder._id,
+            entityId: order._id,
             status: "SUCCESS",
-            message: "Order pushed to Shiprocket via webhook",
+            message: "Order pushed to Shiprocket",
             details: shiprocketRes,
           });
         }
-      } catch (shiprocketErr) {
-        console.error(":x: Shiprocket error:", shiprocketErr.message);
+      } catch (shipErr) {
+        console.error(":x: Shiprocket push failed:", shipErr.message);
         await createLog({
-          user: updatedOrder.user?._id || null,
+          user: order.user?._id,
           source: "INTEGRATION",
           action: "SHIPROCKET_PUSH",
           entity: "Order",
-          entityId: updatedOrder._id,
-          status: "FAILURE",
-          message: "Failed to push order to Shiprocket",
-          details: { error: shiprocketErr.message },
-        });
-      }
-
-      // Send confirmation email/SMS
-      try {
-        if (updatedOrder.user?.email) {
-          const emailTemplate = generateOrderEmail(updatedOrder);
-          await sendEmail({
-            to: updatedOrder.user.email,
-            subject: `Order Confirmation - ${updatedOrder._id.toString().slice(-6).toUpperCase()}`,
-            html: emailTemplate
-          });
-        }
-        if (updatedOrder.shippingAddress?.phone) {
-          const smsMessage = `Hi ${updatedOrder?.user?.name || "Customer"}, your order ${updatedOrder._id
-            .toString()
-            .slice(-6)
-            .toUpperCase()} has been placed successfully on ${new Date().toLocaleDateString("en-IN")} via ExPro! We'll notify you once it's shipped. Thanks for shopping with us.`;
-          await SendSMS({ phone: updatedOrder.shippingAddress.phone, message: smsMessage });
-        }
-
-        await createLog({
-          user: updatedOrder.user?._id || null,
-          source: "SERVICE",
-          action: "ORDER_NOTIFICATION",
-          entity: "Order",
-          entityId: updatedOrder._id,
-          status: "SUCCESS",
-          message: "Email/SMS notifications sent",
-        });
-      } catch (notificationErr) {
-        console.error(":x: Notification error:", notificationErr);
-        await createLog({
-          user: updatedOrder.user?._id || null,
-          source: "SERVICE",
-          action: "ORDER_NOTIFICATION",
-          entity: "Order",
-          entityId: updatedOrder._id,
-          status: "FAILURE",
-          message: "Failed to send notifications",
-          details: { error: notificationErr.message },
-        });
-      }
-    }
-
-    // Handle payment failed event for both payment.failed and order.paid could have failed scenarios
-    if (event === "payment.failed") {
-      const payment = body.payload.payment.entity;
-      const orderId = payment.order_id;
-
-      const order = await Order.findOne({
-        $or: [
-          { razorpayOrderId: orderId },
-          { razorpayTokenOrderId: orderId }
-        ]
-      });
-
-      if (order) {
-        if (orderId === order.razorpayTokenOrderId) {
-          // COD token payment failed
-          await Order.findByIdAndUpdate(order._id, {
-            tokenPaymentStatus: "failed",
-            status: "failed"
-          });
-        } else {
-          // Full payment failed
-          await Order.findByIdAndUpdate(order._id, {
-            paymentStatus: "failed",
-            status: "failed"
-          });
-        }
-        console.log(`:x: Payment failed for order: ${order._id}`);
-        await createLog({
-          user: order.user?._id || null,
-          source: "WEBHOOK",
-          action: "PAYMENT_FAILED",
-          entity: "Order",
           entityId: order._id,
           status: "FAILURE",
-          message: "Razorpay payment failed",
-          details: payment,
+          message: "Failed to push order to Shiprocket",
+          details: { error: shipErr.message },
         });
       }
     }
-
     res.json({ status: "ok" });
   } catch (err) {
-    console.error(":x: Webhook processing error:", err);
+    console.error(":x: Webhook error:", err);
     await createLog({
       source: "WEBHOOK",
       action: "RAZORPAY_WEBHOOK",
@@ -1126,9 +1295,11 @@ export const razorpayWebhook = async (req, res) => {
       message: "Webhook processing failed",
       details: { error: err.message },
     });
-    res.status(500).json({ error: true, message: "Webhook processing failed" });
+    res.status(500).json({ error: true, message: "Webhook failed" });
   }
 };
+
+
 
 
 export const syncSingleOrder = async (req, res) => {
