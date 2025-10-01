@@ -21,7 +21,6 @@ import {
 
 } from "../utils/shiprocket.js";
 import { createLog } from "../utils/log.js";
-import items from "razorpay/dist/types/items.js";
 
 
 
