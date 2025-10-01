@@ -11,7 +11,7 @@ export const reduceStock = async ({
 }) => {
     try {
         // :magnifying_glass_right: Step 1: Check if already deducted for this order + product + variant
-        const existing = await InventoryLog.findOne({
+        const existing = await InventoryMovement.findOne({
             product: productId,
             variantId: variantId || null,
             orderId,
@@ -19,7 +19,7 @@ export const reduceStock = async ({
         });
         if (existing) {
             // :white_tick: Already deducted – log duplicate attempt
-            await InventoryLog.create({
+            await InventoryMovement.create({
                 product: productId,
                 variantId,
                 type: "duplicate_sale_attempt",
@@ -48,7 +48,7 @@ export const reduceStock = async ({
         }
         await product.save();
         // :magnifying_glass_right: Step 3: Create proper inventory log
-        await InventoryLog.create({
+        await InventoryMovement.create({
             product: productId,
             variantId,
             type: "sale",
