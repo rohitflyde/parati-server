@@ -21,6 +21,7 @@ import {
 
 } from "../utils/shiprocket.js";
 import { createLog } from "../utils/log.js";
+import { reduceStock } from "../utils/stock.js";
 
 
 
@@ -248,16 +249,41 @@ export const verifyRazorpayPayment = async (req, res) => {
       const product = await Product.findById(item.product);
       if (!product) continue;
 
-      if (item.variant && item.variant !== "default") {
-        const variant = product.variants.id(item.variant);
-        if (variant) {
-          variant.inventory -= item.quantity;
-          await product.save();
-        }
-      } else {
-        product.stock -= item.quantity;
-        await product.save();
+      // if (item.variant && item.variant !== "default") {
+      //   const variant = product.variants.id(item.variant);
+      //   if (variant) {
+      //     variant.inventory -= item.quantity;
+      //     await product.save();
+      //   }
+      // } else {
+      //   product.stock -= item.quantity;
+      //   await product.save();
+      // }
+
+
+      try {
+        await reduceStock({
+          productId: item.product,
+          variantId: item.variant !== "default" ? item.variant : null,
+          quantity: item.quantity,
+          orderId: updatedOrder._id,
+          userId: updatedOrder.user?._id,
+          notes: "Stock deducted after prepaid order confirmation"
+        });
+      } catch (error) {
+        console.log(error)
+        await createLog({
+          source: "SYSTEM",
+          action: "INVENTORY_DEDUCT",
+          entity: "Inventory",
+          entityId: orderId,
+          status: "FAILURE",
+          message: "Error in stock deduct",
+          details: { error },
+          req,
+        });
       }
+
     }
 
     // 🔹 Log successful verification
@@ -710,16 +736,44 @@ export const verifyCodTokenPayment = async (req, res) => {
       const product = await Product.findById(item.product);
       if (!product) continue;
 
-      if (item.variant && item.variant !== "default") {
-        const variant = product.variants.id(item.variant);
-        if (variant) {
-          variant.inventory -= item.quantity;
-          await product.save();
-        }
-      } else {
-        product.stock -= item.quantity;
-        await product.save();
+      // if (item.variant && item.variant !== "default") {
+      //   const variant = product.variants.id(item.variant);
+      //   if (variant) {
+      //     variant.inventory -= item.quantity;
+      //     await product.save();
+      //   }
+      // } else {
+      //   product.stock -= item.quantity;
+      //   await product.save();
+      // }
+
+
+
+      try {
+        await reduceStock({
+          productId: item.product,
+          variantId: item.variant !== "default" ? item.variant : null,
+          quantity: item.quantity,
+          orderId: order._id,
+          userId: order.user,
+          notes: "Stock deducted after COD token payment"
+        });
+
+      } catch (error) {
+        console.log(error)
+        await createLog({
+          source: "SYSTEM",
+          action: "INVENTORY_DEDUCT",
+          entity: "Inventory",
+          entityId: orderId,
+          status: "FAILURE",
+          message: "Error in stock deduct",
+          details: { error },
+          req,
+        });
       }
+
+
     }
 
     order.status = "confirmed";
@@ -1232,14 +1286,40 @@ export const razorpayWebhook = async (req, res) => {
       for (const item of order.items) {
         const product = await Product.findById(item.product);
         if (!product) continue;
-        if (item.variant && item.variant !== "default") {
-          const variant = product.variants.id(item.variant);
-          if (variant) {
-            variant.inventory -= item.quantity;
-          }
-        } else {
-          product.stock -= item.quantity;
+        // if (item.variant && item.variant !== "default") {
+        //   const variant = product.variants.id(item.variant);
+        //   if (variant) {
+        //     variant.inventory -= item.quantity;
+        //   }
+        // } else {
+        //   product.stock -= item.quantity;
+        // }
+
+
+        try {
+          await reduceStock({
+            productId: item.product,
+            variantId: item.variant !== "default" ? item.variant : null,
+            quantity: item.quantity,
+            orderId: order._id,
+            userId: order.user?._id,
+            notes: "Stock deducted via Razorpay webhook"
+          });
+
+        } catch (error) {
+          console.log(error)
+          await createLog({
+            source: "SYSTEM",
+            action: "INVENTORY_DEDUCT",
+            entity: "Inventory",
+            entityId: orderId,
+            status: "FAILURE",
+            message: "Error in stock deduct",
+            details: { error },
+            req,
+          });
         }
+
         await product.save();
       }
       // :white_tick: Push to Shiprocket
@@ -1384,15 +1464,42 @@ export const syncSingleOrder = async (req, res) => {
     for (const item of order.items) {
       const product = await Product.findById(item.product);
       if (!product) continue;
-      if (item.variant && item.variant !== "default") {
-        const variant = product.variants.id(item.variant);
-        if (variant) {
-          variant.inventory -= item.quantity;
-          await product.save();
-        }
-      } else {
-        product.stock -= item.quantity;
-        await product.save();
+      // if (item.variant && item.variant !== "default") {
+      //   const variant = product.variants.id(item.variant);
+      //   if (variant) {
+      //     variant.inventory -= item.quantity;
+      //     await product.save();
+      //   }
+      // } else {
+      //   product.stock -= item.quantity;
+      //   await product.save();
+      // }
+
+
+
+      try {
+        await reduceStock({
+          productId: item.product,
+          variantId: item.variant !== "default" ? item.variant : null,
+          quantity: item.quantity,
+          orderId: order._id,
+          userId: order.user?._id,
+          notes: "Stock deducted during syncSingleOrder recovery"
+        });
+
+
+      } catch (error) {
+        console.log(error)
+        await createLog({
+          source: "SYSTEM",
+          action: "INVENTORY_DEDUCT",
+          entity: "Inventory",
+          entityId: orderId,
+          status: "FAILURE",
+          message: "Error in stock deduct",
+          details: { error },
+          req,
+        });
       }
     }
     await createLog({

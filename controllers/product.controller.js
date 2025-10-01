@@ -4,6 +4,7 @@ import Wishlist from "../models/Wishlist.js";
 
 import mongoose from "mongoose";
 import { createMediaEntry } from "../utils/createMediaEntry.js";
+import InventoryMovement from "../models/InventoryMovement.js";
 
 // Create Product
 export const createProduct = async (req, res) => {
@@ -220,6 +221,21 @@ export const createProduct = async (req, res) => {
     console.log(newProduct);
 
     const savedProduct = await newProduct.save();
+
+    // ✅ Log opening stock if inventoryType is simple
+    if (inventoryType === "simple" && stock > 0) {
+      await InventoryMovement.create({
+        product: savedProduct._id,
+        type: "add",
+        quantity: stock,
+        balance: stock, // opening balance
+        user: req.user?._id,
+        notes: "Opening stock on product creation"
+      });
+    }
+
+
+
     return res.status(201).json(savedProduct);
   } catch (error) {
     // Duplicate key error
@@ -600,9 +616,29 @@ export const updateProduct = async (req, res) => {
 
     // Find existing product
     const existingProduct = await Product.findById(id);
+
     if (!existingProduct) {
       return res.status(404).json({ message: "Product not found" });
     }
+
+    // Track stock movement if inventoryType is simple
+    if (inventoryType === "simple" && stock !== undefined) {
+      const prevStock = existingProduct.stock || 0;
+      const newStock = stock;
+      const diff = newStock - prevStock;
+
+      if (diff !== 0) {
+        await InventoryMovement.create({
+          product: existingProduct._id,
+          type: diff > 0 ? "add" : "adjustment",
+          quantity: Math.abs(diff),
+          balance: newStock, // new running balance
+          user: req.user?._id,
+          notes: diff > 0 ? "Stock increased via product update" : "Stock reduced via product update"
+        });
+      }
+    }
+
 
     const {
       name,
@@ -658,8 +694,8 @@ export const updateProduct = async (req, res) => {
 
     // Price validation
     if (salePrice && basePrice && parseFloat(salePrice) > parseFloat(basePrice)) {
-      return res.status(400).json({ 
-        message: "Sale price cannot be greater than base price" 
+      return res.status(400).json({
+        message: "Sale price cannot be greater than base price"
       });
     }
 
@@ -700,9 +736,9 @@ export const updateProduct = async (req, res) => {
       const bannersObj = typeof banners === "string" ? JSON.parse(banners) : banners;
 
       for (const [bannerKey, bannerData] of Object.entries(bannersObj)) {
-        processedBanners[bannerKey] = { 
-          ...processedBanners[bannerKey], 
-          ...bannerData 
+        processedBanners[bannerKey] = {
+          ...processedBanners[bannerKey],
+          ...bannerData
         };
 
         // Handle banner image
@@ -730,8 +766,8 @@ export const updateProduct = async (req, res) => {
     // Process featured banner
     let processedFeaturedBanner = existingProduct.featuredBanner;
     if (featuredBanner) {
-      processedFeaturedBanner = typeof featuredBanner === "string" 
-        ? JSON.parse(featuredBanner) 
+      processedFeaturedBanner = typeof featuredBanner === "string"
+        ? JSON.parse(featuredBanner)
         : featuredBanner;
 
       if (req.files?.["featuredBanner.bannerImage"]) {
@@ -750,7 +786,7 @@ export const updateProduct = async (req, res) => {
       ...(brandId && { brandId }),
       ...(productLineId && { productLineId }),
       ...(categories && { categories }),
-      ...(tagIds && { 
+      ...(tagIds && {
         tagIds: Array.isArray(tagIds) ? tagIds : JSON.parse(tagIds || '[]')
       }),
       ...(shortDescription !== undefined && { shortDescription }),
@@ -759,31 +795,31 @@ export const updateProduct = async (req, res) => {
       ...(salePrice !== undefined && { salePrice }),
       ...(featuredImageId && { featuredImage: featuredImageId }),
       ...(basePhotoIds.length > 0 && { basePhotos: basePhotoIds }),
-      ...(baseAttributes && { 
-        baseAttributes: typeof baseAttributes === "string" 
-          ? JSON.parse(baseAttributes) 
-          : baseAttributes 
+      ...(baseAttributes && {
+        baseAttributes: typeof baseAttributes === "string"
+          ? JSON.parse(baseAttributes)
+          : baseAttributes
       }),
-      ...(shipping && { 
-        shipping: typeof shipping === "string" 
-          ? JSON.parse(shipping) 
-          : shipping 
+      ...(shipping && {
+        shipping: typeof shipping === "string"
+          ? JSON.parse(shipping)
+          : shipping
       }),
       ...(inventoryType && { inventoryType }),
       ...(inventoryType === 'simple' && sku && { sku }),
       ...(inventoryType === 'simple' && stock !== undefined && { stock }),
-      ...(variants && { 
-        variants: Array.isArray(variants) ? variants : JSON.parse(variants) 
+      ...(variants && {
+        variants: Array.isArray(variants) ? variants : JSON.parse(variants)
       }),
-      ...(fbtIds && { 
+      ...(fbtIds && {
         fbtIds: Array.isArray(fbtIds) ? fbtIds : JSON.parse(fbtIds || '[]')
       }),
-      ...(relatedProductIds && { 
-        relatedProductIds: Array.isArray(relatedProductIds) 
-          ? relatedProductIds 
+      ...(relatedProductIds && {
+        relatedProductIds: Array.isArray(relatedProductIds)
+          ? relatedProductIds
           : JSON.parse(relatedProductIds || '[]')
       }),
-      ...(checkoutUpsellProductIds && { 
+      ...(checkoutUpsellProductIds && {
         checkoutUpsellProductIds: Array.isArray(checkoutUpsellProductIds)
           ? checkoutUpsellProductIds
           : JSON.parse(checkoutUpsellProductIds || '[]')
@@ -794,27 +830,27 @@ export const updateProduct = async (req, res) => {
       ...(status !== undefined && { status }),
       ...(stockStatus && { stockStatus }),
       ...(Object.keys(processedBanners).length > 0 && { banners: processedBanners }),
-      ...(influencerVideo && { 
+      ...(influencerVideo && {
         influencerVideo: typeof influencerVideo === "string"
           ? JSON.parse(influencerVideo)
           : influencerVideo
       }),
       ...(processedFeaturedBanner && { featuredBanner: processedFeaturedBanner }),
-      ...(compareSection && { 
+      ...(compareSection && {
         compareSection: typeof compareSection === "string"
           ? JSON.parse(compareSection)
           : compareSection
       }),
       ...(metaTitle !== undefined && { metaTitle }),
       ...(metaDescription !== undefined && { metaDescription }),
-      ...(attributes && { 
-        attributes: Array.isArray(attributes) 
-          ? attributes 
+      ...(attributes && {
+        attributes: Array.isArray(attributes)
+          ? attributes
           : JSON.parse(attributes || '[]')
       }),
-      ...(specifications && { 
-        specifications: Array.isArray(specifications) 
-          ? specifications 
+      ...(specifications && {
+        specifications: Array.isArray(specifications)
+          ? specifications
           : JSON.parse(specifications || '[]')
       }),
     };
@@ -822,8 +858,8 @@ export const updateProduct = async (req, res) => {
     console.log('Update fields:', updateFields);
 
     const updatedProduct = await Product.findByIdAndUpdate(
-      id, 
-      updateFields, 
+      id,
+      updateFields,
       {
         new: true, // return updated doc
         runValidators: true,
@@ -842,8 +878,8 @@ export const updateProduct = async (req, res) => {
     // Handle specific error types
     if (error.code === 11000) {
       let duplicateField = Object.keys(error.keyPattern)[0];
-      return res.status(400).json({ 
-        message: `${duplicateField} must be unique` 
+      return res.status(400).json({
+        message: `${duplicateField} must be unique`
       });
     }
 
@@ -852,14 +888,14 @@ export const updateProduct = async (req, res) => {
     }
 
     if (error instanceof SyntaxError && error.message.includes("JSON")) {
-      return res.status(400).json({ 
-        message: "Invalid JSON in one of the fields" 
+      return res.status(400).json({
+        message: "Invalid JSON in one of the fields"
       });
     }
 
-    return res.status(500).json({ 
-      message: "Server error", 
-      error: error.message 
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message
     });
   }
 };

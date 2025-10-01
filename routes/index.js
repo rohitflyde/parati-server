@@ -25,6 +25,8 @@ import reviewRoutes from "./review.routes.js";
 import navigationRoutes from "./navigation.routes.js";
 import collectionRoutes from './collection.routes.js'
 import logsRoutes from './logs.routes.js'
+import inventoryAuditRoutes from './inventoryAudit.routes.js'
+
 
 const router = express.Router();
 
@@ -50,6 +52,7 @@ router.use("/subCategory", subCategoryRoutes)
 router.use('/reviews', reviewRoutes)
 router.use('/collections', collectionRoutes)
 router.use('/logs', logsRoutes)
+router.use('/inventory', inventoryAuditRoutes)
 
 
 
